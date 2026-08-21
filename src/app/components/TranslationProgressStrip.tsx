@@ -54,6 +54,13 @@ interface TranslationProgressStripProps {
   downloadReady?: boolean;
   /** 队列里的文件数，用于按钮上的计数提示 */
   downloadCount?: number;
+  /**
+   * 本轮预期总共会产出多少个文件(文件数 × 语种数 × both 模式的双文件)。
+   * 只传 downloadCount 时按钮上只看得到「已经攒了几个」，看不出这轮总共
+   * 有几个、还差几个没跑完 —— 传了这个才拼成 "已攒 / 预期总数"。
+   * 省略(或 0)时按钮退回旧的纯计数展示。
+   */
+  downloadTotal?: number;
 }
 
 /**
@@ -73,7 +80,7 @@ interface TranslationProgressStripProps {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0 }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0 }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -174,7 +181,7 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
             <Tooltip title={!downloadReady ? t("downloadZipPending") : undefined}>
               <Button size="small" icon={<DownloadOutlined />} disabled={!downloadReady} onClick={onDownloadZip}>
                 {t("downloadZip")}
-                {downloadCount > 0 ? ` (${downloadCount})` : ""}
+                {downloadTotal > 0 ? ` (${downloadCount}/${downloadTotal})` : downloadCount > 0 ? ` (${downloadCount})` : ""}
               </Button>
             </Tooltip>
           )}
