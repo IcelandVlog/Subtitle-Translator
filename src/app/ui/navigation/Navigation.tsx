@@ -81,9 +81,9 @@ export function Navigation() {
                   key: "discord",
                   icon: <DiscordOutlined />,
                   label: (
-                    <a href={SOCIAL_LINKS.discord} target="_blank" rel="noopener noreferrer nofollow">
-                      Discord
-                    </a>
+                    // <a href={SOCIAL_LINKS.discord} target="_blank" rel="noopener noreferrer nofollow">
+                    //   Discord
+                    // </a>
                   ),
                 },
                 {
