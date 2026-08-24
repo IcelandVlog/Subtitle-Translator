@@ -225,16 +225,6 @@ const SubtitleTranslator = () => {
     setZipReady(false);
     setZipFileCount(0);
   };
-  // ZIP 队列的「预期总数」——跟 zipFileCount(已入队数)配对显示成
-  // "3 / 12"，让用户知道这轮批量总共会产出多少文件，而不是只看见
-  // 一个孤零零往上涨的数字。按 performTranslation 里实际入队的规则算：
-  // 文件数 × 语种数(单语言=1)× (exportMode==="both" 时每个产物落两个文件)。
-  const zipFileTotal = useMemo(() => {
-    const fileCount = uploadMode === "single" ? 1 : multipleFiles.length;
-    const langCount = multiLanguageMode ? Math.max(targetLanguages.length, 1) : 1;
-    const perFile = exportMode === "both" ? 2 : 1;
-    return fileCount * langCount * perFile;
-  }, [uploadMode, multipleFiles.length, multiLanguageMode, targetLanguages.length, exportMode]);
   const handleDownloadZip = async () => {
     if (zipQueueRef.current.length === 0) return;
     const { default: JSZip } = await import("jszip");
@@ -744,7 +734,6 @@ const SubtitleTranslator = () => {
               onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : undefined}
               downloadReady={!isTranslating && zipReady}
               downloadCount={zipFileCount}
-              downloadTotal={zipFileTotal}
             />
 
             {/* 实时逐行结果 —— 与进度条并行:每定稿一行立即出现,不等整批。

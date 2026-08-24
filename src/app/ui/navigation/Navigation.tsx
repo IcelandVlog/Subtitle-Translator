@@ -2,7 +2,7 @@
 import React, { memo, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Layout, Menu, Space, Button, Dropdown, Flex } from "antd";
-import { GithubOutlined, QqOutlined, DiscordOutlined, SunOutlined, MoonOutlined, TeamOutlined, SendOutlined } from "@ant-design/icons";
+import { GithubOutlined, QqOutlined, /* DiscordOutlined, */ SunOutlined, MoonOutlined, TeamOutlined, SendOutlined } from "@ant-design/icons";
 import { useTheme } from "next-themes";
 import { useLocale } from "next-intl";
 import { useAppMenu } from "@/app/components/projects";
@@ -77,15 +77,16 @@ export function Navigation() {
                       },
                     ]
                   : []),
-                {
-                  key: "discord",
-                  icon: <DiscordOutlined />,
-                  label: (
-                    // <a href={SOCIAL_LINKS.discord} target="_blank" rel="noopener noreferrer nofollow">
-                    //   Discord
-                    // </a>
-                  ),
-                },
+                // Discord temporarily disabled — remove the comment markers below to re-enable
+                // {
+                //   key: "discord",
+                //   icon: <DiscordOutlined />,
+                //   label: (
+                //     <a href={SOCIAL_LINKS.discord} target="_blank" rel="noopener noreferrer nofollow">
+                //       Discord
+                //     </a>
+                //   ),
+                // },
                 {
                   key: "telegram",
                   icon: <SendOutlined />,
