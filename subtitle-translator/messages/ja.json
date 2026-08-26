@@ -100,6 +100,7 @@
     "translateDonePartial": "失敗した行は原文のまま残っています",
     "translateDoneIncomplete": "一部が完了していません",
     "multiTranslating": "翻訳中、合計言語数：",
+    "currentLanguageProgress": "{lang}（{index}/{total}）",
     "model": "モデル",
     "sameLanguageTarget": "翻訳元と翻訳先が同じ言語です。自動的に翻訳先を調整しました：",
     "sameLanguageSource": "翻訳元と翻訳先が同じ言語です。自動的に翻訳元を調整しました：",

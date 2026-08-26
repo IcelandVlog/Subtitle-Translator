@@ -102,6 +102,7 @@
     "translateDonePartial": "Les lignes en échec conservent le texte d'origine",
     "translateDoneIncomplete": "Certains éléments n'ont pas abouti",
     "multiTranslating": "Traduction en cours, total langues :",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Modèle",
     "sameLanguageTarget": "Langues source et cible identiques ; cible ajustée automatiquement à",
     "sameLanguageSource": "Langues source et cible identiques ; source ajustée automatiquement à",

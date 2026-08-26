@@ -100,6 +100,7 @@
     "translateDonePartial": "В неудавшихся строках сохранён исходный текст",
     "translateDoneIncomplete": "Часть материалов не обработана",
     "multiTranslating": "Перевод, целевых языков:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Модель",
     "sameLanguageTarget": "Исходный и целевой языки совпадают, целевой язык автоматически изменен на",
     "sameLanguageSource": "Исходный и целевой языки совпадают, исходный язык автоматически изменен на",

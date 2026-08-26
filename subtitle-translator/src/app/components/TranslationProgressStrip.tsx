@@ -26,6 +26,15 @@ interface TranslationProgressStripProps {
   multiLanguageMode?: boolean;
   /** Number of target languages */
   targetLanguageCount?: number;
+  /**
+   * 多语言循环里"现在正在译第几个语言"(1-based)。currentCount/totalCount
+   * 是【该语言自己的】行计数,每换一个语言就从头数——不报这个的话,用户只
+   * 看见那对数字来回跳(比如 667→132→404),像是坏了。传了才知道"换语言了",
+   * 不是随机跳动。
+   */
+  currentLangIndex?: number;
+  /** 当前正在译的语言的显示名(与 currentLangIndex 一起报,单独一个没意义)。 */
+  currentLangLabel?: string;
   /** Lines / items completed so far — rendered as a "current / total" hint */
   currentCount?: number;
   /** Total lines / items — omit (or 0) to hide the hint */
@@ -80,7 +89,7 @@ interface TranslationProgressStripProps {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0 }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentLangIndex, currentLangLabel, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0 }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -161,6 +170,15 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
             {isTranslating && multiLanguageMode && targetLanguageCount > 0 && (
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {t("multiTranslating")} <Text strong>{targetLanguageCount}</Text>
+                {/* 当前在译第几个语言——没有这个的话,右上角那对 current/total
+                    (该语言自己的行计数)换语言时会从头数起,用户看不出"换语言了",
+                    只看见数字往回跳。 */}
+                {typeof currentLangIndex === "number" && currentLangLabel && (
+                  <>
+                    {" · "}
+                    {t("currentLanguageProgress", { index: currentLangIndex, total: targetLanguageCount, lang: currentLangLabel })}
+                  </>
+                )}
               </Text>
             )}
           </span>

@@ -102,6 +102,7 @@
     "translateDonePartial": "Failed lines kept their original text",
     "translateDoneIncomplete": "Some items were not completed",
     "multiTranslating": "Translating, total target languages:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Model",
     "sameLanguageTarget": "Source and target languages are the same; automatically adjusted target to",
     "sameLanguageSource": "Source and target languages are the same; automatically adjusted source to",

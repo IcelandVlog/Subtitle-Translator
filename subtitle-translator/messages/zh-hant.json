@@ -106,6 +106,7 @@
     "translateDonePartial": "失敗的行已保留原文",
     "translateDoneIncomplete": "部分內容未完成",
     "multiTranslating": "正在翻譯，目標語言共",
+    "currentLanguageProgress": "{lang}（第 {index}/{total} 個）",
     "model": "模型",
     "sameLanguageTarget": "源語言與目標語言相同，已自動調整目標語言為",
     "sameLanguageSource": "源語言與目標語言相同，已自動調整源語言為",

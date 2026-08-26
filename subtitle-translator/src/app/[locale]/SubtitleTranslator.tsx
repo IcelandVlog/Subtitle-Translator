@@ -117,6 +117,8 @@ const SubtitleTranslator = () => {
     progressPercent,
     setProgressPercent,
     progressInfo,
+    currentLangProgress,
+    setCurrentLangProgress,
     handleLanguageChange,
     handleSwapLanguages,
     validate,
@@ -340,13 +342,19 @@ const SubtitleTranslator = () => {
     // 跟踪当前文件是否有任何 lang 翻译失败;末尾合并到 failedFilesRef
     let hasFailedLang = false;
 
-    for (const currentTargetLang of targetLangs) {
+    for (const [langPos, currentTargetLang] of targetLangs.entries()) {
       // 取消刹车:translateBatch 的入口守卫本来也会把后续语言逐个抛掉(级联标记
       // → 下面 catch 静默 continue),在这里刹住只是不做那 N 次空转。
       if (isCancelRequested()) break;
       // 每个语言(或文件)开始前清掉上一轮的实时行 —— 新一轮结果从空列表
       // 重新累积(多语言循环里每个 lang 的流是独立的)。
       clearLiveLines();
+      // 进度条右侧的 current/total 是"这个语言自己的"行计数，每换一个语言就从
+      // 0 重新数——不报"现在是第几个语言"的话，那个数字在用户眼里就是无缘无故
+      // 跳来跳去。只在多语言模式下才有意义，单语言模式没有这个概念。
+      if (multiLanguageMode) {
+        setCurrentLangProgress({ index: langPos + 1, total: targetLangs.length, label: sourceOptions.find((o) => o.value === currentTargetLang)?.label || currentTargetLang });
+      }
       try {
         // Translate content using the specific target language
         // 软填(保留原文)槽位:removeChars 绝不能碰 —— 碰了就写出既非原文也非
@@ -480,6 +488,11 @@ const SubtitleTranslator = () => {
         message.error({ content, key: "translate-lang-fail", duration: 10 });
       }
     }
+
+    // 本文件的语言循环走完(正常跑完/取消/全失败都算)——清掉"当前语言"标记,
+    // 免得下一个文件的循环还没跑到第一次 setCurrentLangProgress 之前,strip
+    // 上闪一下"上一个文件最后翻的那个语言"。
+    if (multiLanguageMode) setCurrentLangProgress(null);
 
     if (hasFailedLang) noteFileFailure();
 
@@ -734,6 +747,8 @@ const SubtitleTranslator = () => {
               onDismiss={resetProgress}
               multiLanguageMode={multiLanguageMode}
               targetLanguageCount={targetLanguages.length}
+              currentLangIndex={currentLangProgress?.index}
+              currentLangLabel={currentLangProgress?.label}
               failed={failedCount > 0 || failedLangs.length > 0 || runHadFailures}
               lineFailures={failedCount > 0}
               currentCount={progressInfo.current}

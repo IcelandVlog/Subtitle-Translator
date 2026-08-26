@@ -102,6 +102,7 @@
     "translateDonePartial": "Fehlgeschlagene Zeilen behalten den Originaltext",
     "translateDoneIncomplete": "Einige Elemente wurden nicht abgeschlossen",
     "multiTranslating": "Übersetze, Zielsprachen gesamt:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Modell",
     "sameLanguageTarget": "Quell- und Zielsprache sind gleich; Zielsprache automatisch angepasst auf",
     "sameLanguageSource": "Quell- und Zielsprache sind gleich; Quellsprache automatisch angepasst auf",

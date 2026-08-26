@@ -100,6 +100,7 @@
     "translateDonePartial": "บรรทัดที่ล้มเหลวยังคงข้อความต้นฉบับไว้",
     "translateDoneIncomplete": "บางรายการยังไม่เสร็จ",
     "multiTranslating": "กำลังแปล จำนวนภาษาทั้งหมด:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "โมเดล",
     "sameLanguageTarget": "ภาษาต้นฉบับและเป้าหมายเหมือนกัน เป้าหมายถูกปรับเป็น",
     "sameLanguageSource": "ภาษาต้นฉบับและเป้าหมายเหมือนกัน ต้นฉบับถูกปรับเป็น",

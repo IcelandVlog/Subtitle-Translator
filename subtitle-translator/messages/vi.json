@@ -100,6 +100,7 @@
     "translateDonePartial": "Các dòng lỗi vẫn giữ nguyên văn bản gốc",
     "translateDoneIncomplete": "Một số mục chưa hoàn tất",
     "multiTranslating": "Đang dịch, tổng số ngôn ngữ:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Mô hình",
     "sameLanguageTarget": "Ngôn ngữ nguồn và đích giống nhau; đích tự động điều chỉnh thành",
     "sameLanguageSource": "Ngôn ngữ nguồn và đích giống nhau; nguồn tự động điều chỉnh thành",

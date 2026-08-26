@@ -100,6 +100,7 @@
     "translateDonePartial": "ব্যর্থ লাইনগুলোতে মূল লেখা রয়ে গেছে",
     "translateDoneIncomplete": "কিছু আইটেম সম্পূর্ণ হয়নি",
     "multiTranslating": "অনুবাদ করা হচ্ছে, মোট ভাষা:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "মডেল",
     "sameLanguageTarget": "উৎস এবং লক্ষ্য ভাষা একই; লক্ষ্য স্বয়ংক্রিয়ভাবে সামঞ্জস্য করা হয়েছে",
     "sameLanguageSource": "উৎস এবং লক্ষ্য ভাষা একই; উৎস স্বয়ংক্রিয়ভাবে সামঞ্জস্য করা হয়েছে",

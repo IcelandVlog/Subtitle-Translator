@@ -100,6 +100,7 @@
     "translateDonePartial": "विफल पंक्तियों में मूल पाठ बना हुआ है",
     "translateDoneIncomplete": "कुछ आइटम पूरे नहीं हुए",
     "multiTranslating": "अनुवाद कर रहा है, कुल भाषाएं:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "मॉडल",
     "sameLanguageTarget": "स्रोत और लक्ष्य भाषाएं समान हैं; लक्ष्य स्वचालित रूप से समायोजित किया गया",
     "sameLanguageSource": "स्रोत और लक्ष्य भाषाएं समान हैं; स्रोत स्वचालित रूप से समायोजित किया गया",

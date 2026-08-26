@@ -100,6 +100,7 @@
     "translateDonePartial": "احتفظت الأسطر الفاشلة بالنص الأصلي",
     "translateDoneIncomplete": "لم تكتمل بعض العناصر",
     "multiTranslating": "جارٍ الترجمة، إجمالي اللغات:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "النموذج",
     "sameLanguageTarget": "لغات المصدر والهدف متطابقة؛ تم تعديل الهدف تلقائيًا إلى",
     "sameLanguageSource": "لغات المصدر والهدف متطابقة؛ تم تعديل المصدر تلقائيًا إلى",

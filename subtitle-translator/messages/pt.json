@@ -100,6 +100,7 @@
     "translateDonePartial": "As linhas com falha mantiveram o texto original",
     "translateDoneIncomplete": "Alguns itens não foram concluídos",
     "multiTranslating": "Traduzindo, total de idiomas:",
+    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Modelo",
     "sameLanguageTarget": "Idiomas de origem e destino iguais; destino ajustado automaticamente para",
     "sameLanguageSource": "Idiomas de origem e destino iguais; origem ajustada automaticamente para",
