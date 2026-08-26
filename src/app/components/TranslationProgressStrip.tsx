@@ -54,7 +54,22 @@ interface TranslationProgressStripProps {
   downloadReady?: boolean;
   /** 队列里的文件数，用于按钮上的计数提示 */
   downloadCount?: number;
+  /**
+   * 剩余时间估算(秒)—— 按【全局百分比 vs 已耗时】线性外推,与多文件/多语言
+   * 无关,是同一份 percent 的第二种读法。null = 还没攒够样本(<5%)或没在跑。
+   */
+  etaSeconds?: number | null;
 }
+
+/** 02:30 风格的 mm:ss,超过一小时补一段 h:mm:ss —— 纯数字,不需要按语言翻译单位词。 */
+const formatEta = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
+};
 
 /**
  * 内联翻译进度条 —— 前身是全屏的 TranslationProgressModal,砍掉遮罩改为内联,
@@ -73,7 +88,7 @@ interface TranslationProgressStripProps {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0 }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -135,6 +150,14 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
           </div>
 
           <Progress percent={displayPercent} status={done ? "success" : stopped ? "normal" : "active"} strokeColor={stopped ? token.colorWarning : undefined} showInfo={false} strokeLinecap="butt" size={{ height: 6 }} style={{ marginBottom: 0, lineHeight: 1 }} />
+          {/* 只在真的还在跑、且样本够(hook 侧 progressPercent>=5 才给数)时才画 ——
+              done/stopped 已经【没有】「剩多久」这个问题,画出来是在回答一个
+              不存在的问题。 */}
+          {isTranslating && etaSeconds !== null && (
+            <div className="font-mono" style={{ ...monoCaps, color: token.colorTextTertiary, marginTop: 6, textAlign: "right" }}>
+              {t("estimatedTimeRemaining", { time: formatEta(etaSeconds) })}
+            </div>
+          )}
         </>
       )}
 

@@ -209,7 +209,8 @@
     "errorHintGeminiKey": "Không thể kết nối Gemini: hãy kiểm tra mạng trước (một số mạng không thể truy cập trực tiếp dịch vụ Google). Nếu mạng bình thường, từ 19/06/2026 Google từ chối các API key không giới hạn — hãy tạo lại key trong AI Studio (mặc định đã giới hạn) hoặc thêm giới hạn Gemini API cho key cũ trong Google Cloud Console",
     "rateLimitCooldown": "Đạt giới hạn yêu cầu — tạm dừng một lát rồi tự động thử lại",
     "downloadZip": "Tải ZIP",
-    "downloadZipPending": "Có sẵn khi dịch xong"
+    "downloadZipPending": "Có sẵn khi dịch xong",
+    "estimatedTimeRemaining": "còn lại ~{time}"
   },
   "SubtitleTranslator": {
     "clientDescription": "Tải lên phụ đề hoặc dán nội dung. Chọn ngôn ngữ đích để dịch nhanh. Hỗ trợ xử lý hàng loạt và giữ nguyên dòng thời gian.",

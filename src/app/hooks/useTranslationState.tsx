@@ -164,7 +164,7 @@ const useTranslationState = () => {
   };
 
   // Extracted concerns
-  const { isTranslating, setIsTranslating, progressPercent, setProgressPercent, progressInfo, abortControllerRef, disposedRef, makeUpdateProgress, resetProgress, liveLinesStore, clearLiveLines, recordLiveLine, markLiveLinesFailed } = useTranslationProgress();
+  const { isTranslating, setIsTranslating, progressPercent, setProgressPercent, progressInfo, abortControllerRef, disposedRef, makeUpdateProgress, resetProgress, etaSeconds, liveLinesStore, clearLiveLines, recordLiveLine, markLiveLinesFailed } = useTranslationProgress();
 
   // ─── 取消 ────────────────────────────────────────────────────────────────
   // 取消【完全复用】既有的级联中止链路:abort 本轮 controller → 在飞请求与
@@ -884,6 +884,7 @@ const useTranslationState = () => {
     progressPercent,
     setProgressPercent,
     progressInfo,
+    etaSeconds,
     handleLanguageChange,
     handleSwapLanguages,
     retryCount,

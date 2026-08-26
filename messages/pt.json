@@ -209,7 +209,8 @@
     "errorHintGeminiKey": "Não foi possível conectar ao Gemini: verifique primeiro sua rede (algumas redes não alcançam diretamente os serviços do Google). Se a rede estiver bem, desde 19/06/2026 o Google rejeita chaves de API sem restrições — gere novamente sua chave no AI Studio (restrita por padrão) ou adicione uma restrição de Gemini API à chave antiga no Console do Google Cloud",
     "rateLimitCooldown": "Limite de requisições atingido — pausando brevemente, repetiremos automaticamente",
     "downloadZip": "Baixar ZIP",
-    "downloadZipPending": "Disponível quando a tradução terminar"
+    "downloadZipPending": "Disponível quando a tradução terminar",
+    "estimatedTimeRemaining": "~{time} restante"
   },
   "SubtitleTranslator": {
     "clientDescription": "Envie legendas ou cole conteúdo. Selecione o idioma de destino para tradução rápida. Suporta processamento em lote e preserva a linha do tempo.",

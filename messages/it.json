@@ -209,7 +209,8 @@
     "errorHintGeminiKey": "Impossibile raggiungere Gemini: controlla prima la rete (alcune reti non raggiungono direttamente i servizi Google). Se la rete funziona, dal 19 giugno 2026 Google rifiuta le chiavi API senza restrizioni — rigenera la chiave in AI Studio (limitata per impostazione predefinita) o aggiungi una restrizione Gemini API alla vecchia chiave nella console Google Cloud",
     "rateLimitCooldown": "Limite di richieste raggiunto — breve pausa, nuovo tentativo automatico",
     "downloadZip": "Scarica ZIP",
-    "downloadZipPending": "Disponibile al termine della traduzione"
+    "downloadZipPending": "Disponibile al termine della traduzione",
+    "estimatedTimeRemaining": "~{time} rimanenti"
   },
   "SubtitleTranslator": {
     "clientDescription": "Carica sottotitoli o incolla contenuto. Seleziona lingua destinazione per traduzione rapida. Supporta elaborazione batch e preserva timeline.",

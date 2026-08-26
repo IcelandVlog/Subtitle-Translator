@@ -209,7 +209,8 @@
     "errorHintGeminiKey": "Gemini nicht erreichbar: Prüfen Sie zuerst Ihr Netzwerk (manche Netzwerke erreichen Google-Dienste nicht direkt). Ist das Netzwerk in Ordnung, lehnt Google seit dem 19.06.2026 uneingeschränkte API-Schlüssel ab — erstellen Sie Ihren Schlüssel in AI Studio neu (standardmäßig eingeschränkt) oder fügen Sie dem alten Schlüssel in der Google Cloud Console eine Gemini-API-Einschränkung hinzu",
     "rateLimitCooldown": "Anfragelimit erreicht — kurze Pause, automatischer neuer Versuch",
     "downloadZip": "ZIP herunterladen",
-    "downloadZipPending": "Verfügbar nach Abschluss der Übersetzung"
+    "downloadZipPending": "Verfügbar nach Abschluss der Übersetzung",
+    "estimatedTimeRemaining": "noch ~{time}"
   },
   "SubtitleTranslator": {
     "clientDescription": "Untertiteldatei hochladen oder Inhalt einfügen, Zielsprache wählen für schnelle Übersetzung. Unterstützt Stapelverarbeitung und behält Zeitachse bei.",
