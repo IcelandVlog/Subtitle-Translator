@@ -1,6 +1,6 @@
 # ============ 构建阶段 ============
 FROM node:24-alpine AS builder
-
+ 
 WORKDIR /app
 
 COPY package.json yarn.lock ./

@@ -226,6 +226,16 @@ const SubtitleTranslator = () => {
     setZipReady(false);
     setZipFileCount(0);
   };
+  // ZIP 队列的「预期总数」——跟 zipFileCount(已入队数)配对显示成
+  // "3 / 12"，让用户知道这轮批量总共会产出多少文件，而不是只看见
+  // 一个孤零零往上涨的数字。按 performTranslation 里实际入队的规则算：
+  // 文件数 × 语种数(单语言=1)× (exportMode==="both" 时每个产物落两个文件)。
+  const zipFileTotal = useMemo(() => {
+    const fileCount = uploadMode === "single" ? 1 : multipleFiles.length;
+    const langCount = multiLanguageMode ? Math.max(targetLanguages.length, 1) : 1;
+    const perFile = exportMode === "both" ? 2 : 1;
+    return fileCount * langCount * perFile;
+  }, [uploadMode, multipleFiles.length, multiLanguageMode, targetLanguages.length, exportMode]);
   const handleDownloadZip = async () => {
     if (zipQueueRef.current.length === 0) return;
     const { default: JSZip } = await import("jszip");
@@ -729,13 +739,14 @@ const SubtitleTranslator = () => {
               lineFailures={failedCount > 0}
               currentCount={progressInfo.current}
               totalCount={progressInfo.total}
-              etaSeconds={etaSeconds}
               // 队列只在「多语言 或 多文件」的批量场景下会被写入(见
               // performTranslation 里的 isBatchRun 判断);单文件单语言的
               // 常规翻译走原有的「预览 + Export 按钮」路径，不需要这颗按钮。
               onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : undefined}
               downloadReady={!isTranslating && zipReady}
               downloadCount={zipFileCount}
+              downloadTotal={zipFileTotal}
+              etaSeconds={etaSeconds}
             />
 
             {/* 实时逐行结果 —— 与进度条并行:每定稿一行立即出现,不等整批。

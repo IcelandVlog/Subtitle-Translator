@@ -14,7 +14,7 @@ export function generatePageMetadata(toolKey: ToolKey) {
     const content = await loadToolContent(toolKey, locale);
     return buildToolPageMetadata({
       locale,
-      title: content.metaTitle, 
+      title: content.metaTitle,
       description: content.metaDescription,
       path: pathOf(toolKey),
     });

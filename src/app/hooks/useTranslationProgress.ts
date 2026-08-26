@@ -24,6 +24,24 @@ const LIVE_FLUSH_MS = 100;
 /** 稳定的空快照 —— useSyncExternalStore 要求"没变化就返回同一个引用"。 */
 const NO_LIVE_LINES: LiveLine[] = [];
 
+// 用户请求:「一切换页 / 开新 tab,翻译就断」——不该断。翻译循环靠闭包自持,
+// 真实 API 请求已经发出去了,唯一决定它是否被【强行】腰斩的是这两个 ref 是否
+// 随组件卸载被清空。之前它们是 useRef,活在单个组件实例上:Provider 卸载
+// (切语言触发的 [locale] 路由重渲染、或任何未来的站内导航)会触发下面这条
+// cleanup,abort 掉在飞请求、并把 disposedRef 钉死为 true,于是
+// translateSingle/translateBatch 里的 shouldStop 短路,后续语言/文件全部放弃。
+//
+// 现在把它们提到模块作用域:生命周期跟着【这个标签页的 JS 环境】走,而不是
+// 跟着某一次组件挂载走。组件重挂载(locale 切换、面板重新渲染)不再摸到这两
+// 个引用,翻译循环该怎么跑还怎么跑,直到它自己 resolve/reject,或者用户主动
+// 点击取消按钮(那条路径走 requestCancel,直接 abort 当前 run 的 controller,
+// 和这里无关,见 useTranslationState.tsx)。
+// ⚠ 前提:同一个标签页里 useTranslationProgress 只会被实例化一次(当前只有
+// 一个 TranslationProvider)。如果未来同一页面要并存多个独立的翻译面板,这两
+// 个 module 级引用需要按 provider 实例分开(比如用一个 Map),否则会互相打断。
+const globalAbortControllerRef: { current: AbortController | null } = { current: null };
+const globalDisposedRef: { current: boolean } = { current: false };
+
 /** 实时行的外部 store 契约(见 useTranslationProgress 里的说明)。 */
 export interface LiveLinesStore {
   subscribe: (onChange: () => void) => () => void;
@@ -49,25 +67,6 @@ const publish = (snapshotRef: { current: LiveLine[] }, listeners: Set<() => void
  * slice within a multi-file translation, normalizing fractional/overflowing
  * progress into a clean {percent, current, total} pair.
  */
-// 曾经的用户请求:「一切换页 / 开新 tab,翻译就断」——不该断。翻译循环靠闭包
-// 自持、真实 API 请求已经发出去了,唯一决定它是否被【强行】腰斩的是这两个
-// ref 是否随组件卸载被清空。之前它们是 useRef,活在单个组件实例上:
-// Provider 卸载(切语言触发的 [locale] 路由重渲染、或任何未来的站内导航)会
-// 触发下面这条 cleanup,abort 掉在飞请求、并把 disposedRef 钉死为 true,
-// 于是 translateSingle/translateBatch 里的 shouldStop 短路,后续语言/文件
-// 全部放弃。
-//
-// 现在把它们提到模块作用域:生命周期跟着【这个标签页的 JS 环境】走,而不是
-// 跟着某一次组件挂载走。组件重挂载(locale 切换、面板重新渲染)不再摸到这两
-// 个引用,翻译循环该怎么跑还怎么跑,直到它自己 resolve/reject,或者用户主动
-// 点击取消按钮(那条路径走 requestCancel,直接 abort 当前 run 的 controller,
-// 和这里无关,见 useTranslationState.tsx)。
-// ⚠ 前提:同一个标签页里 useTranslationProgress 只会被实例化一次(当前只有
-// 一个 TranslationProvider)。如果未来同一页面要并存多个独立的翻译面板,这两
-// 个 module 级引用需要按 provider 实例分开(比如用一个 Map),否则会互相打断。
-const globalAbortControllerRef: { current: AbortController | null } = { current: null };
-const globalDisposedRef: { current: boolean } = { current: false };
-
 export const useTranslationProgress = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);

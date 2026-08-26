@@ -55,6 +55,13 @@ interface TranslationProgressStripProps {
   /** 队列里的文件数，用于按钮上的计数提示 */
   downloadCount?: number;
   /**
+   * 本轮预期总共会产出多少个文件(文件数 × 语种数 × both 模式的双文件)。
+   * 只传 downloadCount 时按钮上只看得到「已经攒了几个」，看不出这轮总共
+   * 有几个、还差几个没跑完 —— 传了这个才拼成 "已攒 / 预期总数"。
+   * 省略(或 0)时按钮退回旧的纯计数展示。
+   */
+  downloadTotal?: number;
+  /**
    * 剩余时间估算(秒)—— 按【全局百分比 vs 已耗时】线性外推,与多文件/多语言
    * 无关,是同一份 percent 的第二种读法。null = 还没攒够样本(<5%)或没在跑。
    */
@@ -88,7 +95,7 @@ const formatEta = (totalSeconds: number): string => {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, etaSeconds = null }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -150,7 +157,7 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
           </div>
 
           <Progress percent={displayPercent} status={done ? "success" : stopped ? "normal" : "active"} strokeColor={stopped ? token.colorWarning : undefined} showInfo={false} strokeLinecap="butt" size={{ height: 6 }} style={{ marginBottom: 0, lineHeight: 1 }} />
-          {/* 只在真的还在跑、且样本够(hook 侧 progressPercent>=5 才给数)时才画 ——
+          {/* 只在真的还在跑、且样本够(hook 侧 progress>=5 才给数)时才画 ——
               done/stopped 已经【没有】「剩多久」这个问题,画出来是在回答一个
               不存在的问题。 */}
           {isTranslating && etaSeconds !== null && (
@@ -197,7 +204,7 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
             <Tooltip title={!downloadReady ? t("downloadZipPending") : undefined}>
               <Button size="small" icon={<DownloadOutlined />} disabled={!downloadReady} onClick={onDownloadZip}>
                 {t("downloadZip")}
-                {downloadCount > 0 ? ` (${downloadCount})` : ""}
+                {downloadTotal > 0 ? ` (${downloadCount}/${downloadTotal})` : downloadCount > 0 ? ` (${downloadCount})` : ""}
               </Button>
             </Tooltip>
           )}
