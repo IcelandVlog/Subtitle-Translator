@@ -341,7 +341,20 @@ const SubtitleTranslator = () => {
     // 跟踪当前文件是否有任何 lang 翻译失败;末尾合并到 failedFilesRef
     let hasFailedLang = false;
 
-    for (const currentTargetLang of targetLangs) {
+    // ⚠ 进度不能只按"文件"分段 —— 多语言模式下,同一个文件要跑 targetLangs.length
+    // 次 translateBatch,而下面这行本来对每个语言都传同一对 (fileIndex, totalFiles)。
+    // translateBatch 内部按 (fileIndex + current/total)/totalFiles 算全局 %,拿同一对
+    // 分母跑 N 次语言,每个语言各自的 batch 都会把 current/total 从 0 冲到 total,于是
+    // 进度条在同一个文件区间里反复"冲到顶再摔回底部再冲顶"——这就是"% 跳来跳去、
+    // 看着像按文件/按语言分段"的根源,不是显示层的锅,是分母算错了。
+    // 把"文件 × 语言"拉平成一条连续的 segment 序列(segmentIndex/totalSegments),
+    // 传给 translateBatch 代替裸的 fileIndex/totalFiles,进度就在整个批次里单调爬升。
+    const langCount = Math.max(targetLangs.length, 1);
+    const totalSegments = Math.max(totalFiles ?? 1, 1) * langCount;
+
+    for (let langIdx = 0; langIdx < targetLangs.length; langIdx++) {
+      const currentTargetLang = targetLangs[langIdx];
+      const segmentIndex = (fileIndex ?? 0) * langCount + langIdx;
       // 取消刹车:translateBatch 的入口守卫本来也会把后续语言逐个抛掉(级联标记
       // → 下面 catch 静默 continue),在这里刹住只是不做那 N 次空转。
       if (isCancelRequested()) break;
@@ -354,7 +367,7 @@ const SubtitleTranslator = () => {
         // 译文的东西,而失败面板同屏正说着"失败的行已保留原文"。
         // 规则与 CLI 共用同一份实现:lib/translation/softFill。
         const softFilled = new Set<number>();
-        const rawTranslatedLines = await translateBatch(cleanLines, translationMethod, currentTargetLang, fileIndex, totalFiles, contextAware ? "subtitle" : undefined, {
+        const rawTranslatedLines = await translateBatch(cleanLines, translationMethod, currentTargetLang, segmentIndex, totalSegments, contextAware ? "subtitle" : undefined, {
           lineNumbers: sourceLineNumbers,
           fileName,
           collectSoftFilled: softFilled,
