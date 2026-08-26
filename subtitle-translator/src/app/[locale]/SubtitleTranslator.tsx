@@ -459,7 +459,11 @@ const SubtitleTranslator = () => {
         }
 
         if (multiLanguageMode && currentTargetLang !== targetLangs[targetLangs.length - 1]) {
-          await delay(500);
+          // 原为 500ms —— 纯粹的节流停顿,和实际限速/重试无关(429 已经由
+          // rateLimitGate + pRetry 单独处理)。多语言批次里每切一次语言都要等
+          // 一次,30 个语言 × 多个文件累积起来是纯浪费的等待,缩到 120ms 意思
+          // 意思留一点呼吸空间就够。
+          await delay(120);
         }
       } catch (error: unknown) {
         console.error(error);

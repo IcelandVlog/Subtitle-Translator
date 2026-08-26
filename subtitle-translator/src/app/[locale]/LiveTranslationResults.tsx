@@ -104,7 +104,13 @@ const LiveTranslationResults = ({ store, processedCount }: LiveTranslationResult
         borderRadius: token.borderRadiusLG,
         background: token.colorBgContainer,
         marginTop: 12,
-        maxHeight: 320,
+        // ⚠ 固定 height(不是 maxHeight):每次切语言/文件 clearLiveLines() 都会把
+        // 内容清空再重新攒满,如果高度跟着内容走,这个面板会在"几行文字"和
+        // "空提示"之间反复缩到 ~60px 又长回 320px —— 页面总高度跟着抖动,
+        // 浏览器的 scroll anchoring 找不到稳定锚点,就会把窗口滚动位置弹到别处
+        // 再弹回来,看起来像整个页面在跳。锁死高度后面板本身的尺寸从不变化,
+        // 这类跳动就没有触发源了。
+        height: 320,
         overflowY: "auto",
       }}>
       {/* 不在这里报行数:lines 是被窗口截过的,显示出来是【渲染条数】而不是
