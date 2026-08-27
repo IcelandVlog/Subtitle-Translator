@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { App } from "antd";
 import { useTranslations } from "next-intl";
 import { normalizeNewlines, decodeFileBytes, getErrorMessage } from "@/app/utils";
+import { useLocalStorage } from "@/app/hooks/useLocalStorage";
 import type { UploadFile, UploadProps } from "antd";
 
 // Shared dedup predicate: match by name + size
@@ -21,7 +22,7 @@ const useFileUpload = () => {
   // the user only meant to translate the one they just dropped in. Batch
   // translation is still available — the user just has to turn this off (or
   // select several files at once), rather than it being the surprising default.
-  const [singleFileMode, setSingleFileMode] = useState(true);
+  const [singleFileMode, setSingleFileMode] = useLocalStorage<boolean>("translation-singleFileMode", true);
   const [isFileProcessing, setIsFileProcessing] = useState<boolean>(false);
   // 读取序号守卫:FileReader.onload / decodeFileBytes 都是异步,一次读取尚未完成时
   // 又发起新读取(连续换文件)或清空(resetUpload),旧读的回调若晚到会用旧内容

@@ -60,7 +60,7 @@ const useTranslationState = () => {
   const { readFile } = useFileUpload();
 
   // State
-  const [useCache, setUseCache] = useState<boolean>(true);
+  const [useCache, setUseCache] = useLocalStorage<boolean>("translation-useCache", true);
   // Drawer for the full provider/model/prompt config surface. Replaces the
   // previous "Advanced" Tab; sits per-translator inside TranslationProvider.
   const [apiSettingsOpen, setApiSettingsOpen] = useState<boolean>(false);
