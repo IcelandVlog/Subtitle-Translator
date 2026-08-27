@@ -99,13 +99,18 @@ export const useTranslationProgress = () => {
       setProgressPercent(progress);
       // `current` can be fractional (e.g. 0.5 kick value to avoid a 0% stall) — floor it for display.
       setProgressInfo({ current: Math.min(Math.floor(current), total), total });
-      // 5% 门槛:翻完第一行就可能是 2%,样本太小,除出来的「还要 40 分钟」这种
-      // 数字比不显示更误导人;到 5% 时噪声已经收敛到能看的程度。100% 时已经
-      // 没有「剩多久」这个问题,不算。
-      if (progress >= 5 && progress < 100 && runStartTimeRef.current !== null) {
+      // 门槛按【已耗时】而不是【百分比】卡:老门槛(全局进度 ≥5%)在大批量场景
+      // (比如 30 个目标语种)下,即使已经跑了几十秒、翻完了一整个文件,全局
+      // 百分比可能还不到 1%,用户点了翻译却半天看不到剩余时间。已耗时 ≥1s 就
+      // 有一个不算离谱的样本了(单行请求一般几百 ms~几秒),体验上约等于
+      // 「点了翻译马上就看到时间」,又不至于拿 0 样本外推出荒谬的数字。
+      // 100% 时已经没有「剩多久」这个问题,不算。
+      if (progress > 0 && progress < 100 && runStartTimeRef.current !== null) {
         const elapsedMs = Date.now() - runStartTimeRef.current;
-        const remainingMs = (elapsedMs / progress) * (100 - progress);
-        setEtaSeconds(Math.max(0, Math.round(remainingMs / 1000)));
+        if (elapsedMs >= 1000) {
+          const remainingMs = (elapsedMs / progress) * (100 - progress);
+          setEtaSeconds(Math.max(0, Math.round(remainingMs / 1000)));
+        }
       }
     };
 

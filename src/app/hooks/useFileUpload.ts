@@ -15,7 +15,13 @@ const useFileUpload = () => {
   const [multipleFiles, setMultipleFiles] = useState<File[]>([]);
   const [uploadMode, setUploadMode] = useState<"single" | "multiple">("single");
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [singleFileMode, setSingleFileMode] = useState(false);
+  // Default true: without this, a second upload ACCUMULATES onto the first
+  // (Dragger's `multiple` prop) instead of replacing it, silently flipping
+  // uploadMode to "multiple" and translating/exporting both files even though
+  // the user only meant to translate the one they just dropped in. Batch
+  // translation is still available — the user just has to turn this off (or
+  // select several files at once), rather than it being the surprising default.
+  const [singleFileMode, setSingleFileMode] = useState(true);
   const [isFileProcessing, setIsFileProcessing] = useState<boolean>(false);
   // 读取序号守卫:FileReader.onload / decodeFileBytes 都是异步,一次读取尚未完成时
   // 又发起新读取(连续换文件)或清空(resetUpload),旧读的回调若晚到会用旧内容
