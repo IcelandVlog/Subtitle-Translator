@@ -8,7 +8,7 @@
    token overrides.
    ───────────────────────────────────────────────────────────── */
 :root {
-  --bg-dark: #121110;
+  --bg-dark: #05070c;
   --bg-light: #f4f2ec;
   --ink-dark: #f0ede4;
   --ink-light: #141310;
@@ -238,4 +238,15 @@ html.light body::before {
     animation: none !important;
     opacity: 0.7 !important;
   }
+}
+
+/*
+ * Upload list row's per-file remove (delete) icon: antd only shows it on
+ * :hover by default, which leaves it invisible until a mouse hovers over
+ * the row — the file remove icon sits exactly where the screenshot's red
+ * circle points, but with opacity 0 at rest. Force it always visible so
+ * every row has a tappable/clickable delete affordance without hovering.
+ */
+.ant-upload-list-item-actions .ant-upload-list-item-action {
+  opacity: 1 !important;
 }

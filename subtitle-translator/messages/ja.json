@@ -100,7 +100,6 @@
     "translateDonePartial": "失敗した行は原文のまま残っています",
     "translateDoneIncomplete": "一部が完了していません",
     "multiTranslating": "翻訳中、合計言語数：",
-    "currentLanguageProgress": "{lang}（{index}/{total}）",
     "model": "モデル",
     "sameLanguageTarget": "翻訳元と翻訳先が同じ言語です。自動的に翻訳先を調整しました：",
     "sameLanguageSource": "翻訳元と翻訳先が同じ言語です。自動的に翻訳元を調整しました：",
@@ -210,7 +209,8 @@
     "errorHintGeminiKey": "Gemini に接続できません。まずネットワークを確認してください（一部のネットワークでは Google サービスに直接接続できません）。ネットワークに問題がなければ、2026年6月19日以降 Google は無制限の API キーを拒否しています。AI Studio でキーを再生成する（デフォルトで制限付き）か、Google Cloud コンソールで既存キーに Gemini API 制限を追加してください",
     "rateLimitCooldown": "レート制限に達したため少し待機し、自動的に再試行します",
     "downloadZip": "ZIPをダウンロード",
-    "downloadZipPending": "翻訳完了後に利用可能"
+    "downloadZipPending": "翻訳完了後に利用可能",
+    "estimatedTimeRemaining": "残り ~{time}"
   },
   "SubtitleTranslator": {
     "clientDescription": "字幕ファイルをアップロードまたは内容を貼り付け、翻訳先言語を選択して素早く翻訳。一括処理に対応し、タイムラインを自動保持。",

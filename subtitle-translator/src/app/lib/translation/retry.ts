@@ -163,76 +163,11 @@ export const getRetryConfig = (translationMethod: string, userConfig?: UserRetry
  */
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
-// ─── Worker-backed wakeups (dodge background-tab timer throttling) ─────────
-// Chrome/Firefox clamp setTimeout on the main thread of a *background* tab:
-// after a few seconds every timer is forced to fire at most once per second,
-// and after ~5 minutes hidden that drops further to about once per minute
-// ("intensive throttling"). None of that applies to timers registered inside
-// a Worker — a worker keeps running on its own schedule regardless of whether
-// its owning tab is visible or focused.
-//
-// This matters here specifically because the translation loop's pacing
-// (baseDelay/interBatchDelay/间隔暂停,全部经 delay/abortableSleep 这条路)
-// runs dozens–hundreds of these waits per file. On the main thread each one
-// individually looks harmless (100–1500ms), but once a tab goes to the
-// background every one of them gets inflated to ≥1s (or ≥60s after intensive
-// throttling kicks in) — the exact "翻译在切到别的 tab / 页面后变得很慢" symptom.
-// Routing the wait through a tiny dedicated worker keeps the actual delay
-// close to what was asked for, tab-visibility or not.
-//
-// Guarded by `typeof Worker === "undefined"` so this stays a no-op (falls
-// back to plain setTimeout) in the Node/CLI entry point — see the file-level
-// note at the top of this file about staying importable from Node.
-let sharedTimerWorker: Worker | null = null;
-let nextWakeupId = 0;
-const pendingWakeups = new Map<number, () => void>();
-
-const WORKER_SOURCE = "self.onmessage=(e)=>{var d=e.data;setTimeout(function(){self.postMessage(d.id);},d.ms);};";
-
-function getTimerWorker(): Worker | null {
-  if (typeof Worker === "undefined") return null;
-  if (sharedTimerWorker) return sharedTimerWorker;
-  try {
-    const blobUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: "application/javascript" }));
-    sharedTimerWorker = new Worker(blobUrl);
-    sharedTimerWorker.onmessage = (e: MessageEvent<number>) => {
-      const cb = pendingWakeups.get(e.data);
-      if (cb) {
-        pendingWakeups.delete(e.data);
-        cb();
-      }
-    };
-  } catch {
-    // CSP blocking blob: workers, or any other construction failure —
-    // fall back to plain setTimeout rather than breaking translation.
-    sharedTimerWorker = null;
-  }
-  return sharedTimerWorker;
-}
-
-/**
- * setTimeout that prefers a Worker-hosted clock so background-tab throttling
- * (see block comment above) doesn't inflate the wait. Returns a cancel
- * function, mirroring clearTimeout, so callers can wire up abort the same
- * way regardless of which path actually fired.
- */
-function scheduleWakeup(ms: number, cb: () => void): () => void {
-  const worker = getTimerWorker();
-  if (!worker) {
-    const t = setTimeout(cb, ms);
-    return () => clearTimeout(t);
-  }
-  const id = nextWakeupId++;
-  pendingWakeups.set(id, cb);
-  worker.postMessage({ id, ms });
-  return () => pendingWakeups.delete(id);
-}
-
 /**
  * Delay helper function
  */
 export const delay = (ms: number): Promise<void> => {
-  return new Promise((resolve) => scheduleWakeup(Math.min(ms, MAX_TIMEOUT_MS), resolve));
+  return new Promise((resolve) => setTimeout(resolve, Math.min(ms, MAX_TIMEOUT_MS)));
 };
 
 /**
@@ -244,16 +179,15 @@ export const delay = (ms: number): Promise<void> => {
  * (translateLines 线路径的 delayTime 节流直接依赖这一条:它睡在【译文已写入
  * 槽位之后】的任务内,reject 会让 Promise.all 把一批成功翻译整体打成异常。)
  *
- * 同 delay:夹到 setTimeout 的 32 位上限,详见 MAX_TIMEOUT_MS;同 delay,底层
- * 优先走 worker 时钟以避开后台标签页的定时器节流,详见 scheduleWakeup。
+ * 同 delay:夹到 setTimeout 的 32 位上限,详见 MAX_TIMEOUT_MS。
  */
 export const abortableSleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     if (signal?.aborted) return resolve();
-    const cancel = scheduleWakeup(Math.min(ms, MAX_TIMEOUT_MS), done);
+    const timer = setTimeout(done, Math.min(ms, MAX_TIMEOUT_MS));
     function done() {
       signal?.removeEventListener("abort", done);
-      cancel();
+      clearTimeout(timer);
       resolve();
     }
     signal?.addEventListener("abort", done, { once: true });
@@ -292,18 +226,17 @@ export const RATE_LIMIT_RESUME_JITTER_MS = 1_000;
 // Same rejection message as the run-abort path ("Translation aborted") so the
 // existing classification chain (isCascadedAbort → silent, non-retryable)
 // handles a mid-wait cancel without new plumbing.
-// 同 delay/abortableSleep:优先走 worker 时钟,避开后台标签页的定时器节流。
 const abortableDelay = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error("Translation aborted"));
     const onAbort = () => {
-      cancel();
+      clearTimeout(timer);
       reject(new Error("Translation aborted"));
     };
-    const cancel = scheduleWakeup(ms, () => {
+    const timer = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
-    });
+    }, ms);
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 

@@ -102,7 +102,6 @@
     "translateDonePartial": "Las líneas fallidas conservan el texto original",
     "translateDoneIncomplete": "Algunos elementos no se completaron",
     "multiTranslating": "Traduciendo, total idiomas:",
-    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Modelo",
     "sameLanguageTarget": "Idiomas origen y destino iguales; destino ajustado automáticamente a",
     "sameLanguageSource": "Idiomas origen y destino iguales; origen ajustado automáticamente a",
@@ -210,7 +209,8 @@
     "errorHintGeminiKey": "No se puede conectar con Gemini: compruebe primero su red (algunas redes no pueden acceder directamente a los servicios de Google). Si la red funciona, desde el 19 de junio de 2026 Google rechaza las claves API sin restricciones — regenere su clave en AI Studio (restringida por defecto) o añada una restricción de Gemini API a la clave antigua en la consola de Google Cloud",
     "rateLimitCooldown": "Límite de solicitudes alcanzado — pausa breve, se reintentará automáticamente",
     "downloadZip": "Descargar ZIP",
-    "downloadZipPending": "Disponible al finalizar la traducción"
+    "downloadZipPending": "Disponible al finalizar la traducción",
+    "estimatedTimeRemaining": "~{time} restante"
   },
   "SubtitleTranslator": {
     "clientDescription": "Sube subtítulos o pega contenido. Selecciona idioma destino para traducción rápida. Soporta procesamiento por lotes y conserva línea de tiempo.",

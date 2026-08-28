@@ -24,6 +24,24 @@ const LIVE_FLUSH_MS = 100;
 /** 稳定的空快照 —— useSyncExternalStore 要求"没变化就返回同一个引用"。 */
 const NO_LIVE_LINES: LiveLine[] = [];
 
+// 用户请求:「一切换页 / 开新 tab,翻译就断」——不该断。翻译循环靠闭包自持,
+// 真实 API 请求已经发出去了,唯一决定它是否被【强行】腰斩的是这两个 ref 是否
+// 随组件卸载被清空。之前它们是 useRef,活在单个组件实例上:Provider 卸载
+// (切语言触发的 [locale] 路由重渲染、或任何未来的站内导航)会触发下面这条
+// cleanup,abort 掉在飞请求、并把 disposedRef 钉死为 true,于是
+// translateSingle/translateBatch 里的 shouldStop 短路,后续语言/文件全部放弃。
+//
+// 现在把它们提到模块作用域:生命周期跟着【这个标签页的 JS 环境】走,而不是
+// 跟着某一次组件挂载走。组件重挂载(locale 切换、面板重新渲染)不再摸到这两
+// 个引用,翻译循环该怎么跑还怎么跑,直到它自己 resolve/reject,或者用户主动
+// 点击取消按钮(那条路径走 requestCancel,直接 abort 当前 run 的 controller,
+// 和这里无关,见 useTranslationState.tsx)。
+// ⚠ 前提:同一个标签页里 useTranslationProgress 只会被实例化一次(当前只有
+// 一个 TranslationProvider)。如果未来同一页面要并存多个独立的翻译面板,这两
+// 个 module 级引用需要按 provider 实例分开(比如用一个 Map),否则会互相打断。
+const globalAbortControllerRef: { current: AbortController | null } = { current: null };
+const globalDisposedRef: { current: boolean } = { current: false };
+
 /** 实时行的外部 store 契约(见 useTranslationProgress 里的说明)。 */
 export interface LiveLinesStore {
   subscribe: (onChange: () => void) => () => void;
@@ -53,27 +71,22 @@ export const useTranslationProgress = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressInfo, setProgressInfo] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllerRef = globalAbortControllerRef;
+  const disposedRef = globalDisposedRef;
 
-  // Provider 卸载(进行中浏览器后退/换页)后,运行结果再也无处投递,但翻译
-  // 循环全靠闭包自持,会headless 跑完剩余批次/语言/文件 —— 真实 API 配额
-  // 持续燃烧,且 message toast 还会弹在用户切去的页面上。卸载时:中止当前
-  // run 的 controller(杀掉在飞请求 + 让批任务的 signal 检查短路),并立
-  // disposed 旗标(让 translateSingle / translateBatch 拒绝开启后续语言/
-  // 文件的新 run —— 它们各自新建 controller,单靠 abort 拦不住)。
-  // effect 体里复位 false:StrictMode 开发态的 mount→cleanup→mount 周期
-  // 保留同一 ref,不复位会把重挂载后的所有翻译永久拒之门外。
-  const disposedRef = useRef(false);
-  useEffect(() => {
-    disposedRef.current = false;
-    return () => {
-      disposedRef.current = true;
-      // 此处必须读【卸载时刻】的最新 controller(每次 translateBatch 都换新);
-      // 按 lint 建议在 effect 体内拷贝只会拿到 mount 时的 null。
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      abortControllerRef.current?.abort();
-    };
-  }, []);
+  // ─── 预计剩余时间(ETA)──────────────────────────────────────────────────
+  // 只按【整体百分比 vs 已耗时】线性外推 —— 不按「当前文件的 current/total」算,
+  // 因为 makeUpdateProgress 的 current/total 是【单个文件内部】的行数,多文件/
+  // 多语言批次里跨文件切换时会突然归零再重新计数,拿它做速率会在每个文件边界
+  // 抖成锯齿。progress(下面算出的全局 0-100)跨文件是连续的,线性外推稳。
+  //
+  // ⚠ 就地算在 makeUpdateProgress 的回调里,不用 useEffect 追 progressPercent
+  // 再 setState —— 那是"在 effect 里镜像 state"的反模式(本仓开着的
+  // react-hooks/set-state-in-effect 规则会直接拒绝),而且语义也不对:这里要的
+  // 是「这次进度事件发生时该报多少」,不是「progressPercent 变了就重新算」,
+  // 两者在此等价,但前者才是事件驱动的正确写法。
+  const runStartTimeRef = useRef<number | null>(null);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
 
   /**
    * Build a progress-updater for one file within a multi-file batch.
@@ -86,11 +99,29 @@ export const useTranslationProgress = () => {
       setProgressPercent(progress);
       // `current` can be fractional (e.g. 0.5 kick value to avoid a 0% stall) — floor it for display.
       setProgressInfo({ current: Math.min(Math.floor(current), total), total });
+      // 门槛按【已耗时】而不是【百分比】卡:老门槛(全局进度 ≥5%)在大批量场景
+      // (比如 30 个目标语种)下,即使已经跑了几十秒、翻完了一整个文件,全局
+      // 百分比可能还不到 1%,用户点了翻译却半天看不到剩余时间。已耗时 ≥1s 就
+      // 有一个不算离谱的样本了(单行请求一般几百 ms~几秒),体验上约等于
+      // 「点了翻译马上就看到时间」,又不至于拿 0 样本外推出荒谬的数字。
+      // 100% 时已经没有「剩多久」这个问题,不算。
+      if (progress > 0 && progress < 100 && runStartTimeRef.current !== null) {
+        const elapsedMs = Date.now() - runStartTimeRef.current;
+        if (elapsedMs >= 1000) {
+          const remainingMs = (elapsedMs / progress) * (100 - progress);
+          setEtaSeconds(Math.max(0, Math.round(remainingMs / 1000)));
+        }
+      }
     };
 
   const resetProgress = () => {
     setProgressPercent(0);
     setProgressInfo({ current: 0, total: 0 });
+    // 计时起点钉在这里(runTranslation 在发第一个请求前就调用它),比等第一次
+    // progressPercent 变化再起表更早、更准 —— 请求排队/探测阶段的耗时也该算进
+    // 「已经花了多久」里,否则 ETA 会系统性偏乐观。
+    runStartTimeRef.current = Date.now();
+    setEtaSeconds(null);
   };
 
   // ─── 实时逐行结果(与进度条并行的第二通道)──────────────────────────────
@@ -221,6 +252,7 @@ export const useTranslationProgress = () => {
     disposedRef,
     makeUpdateProgress,
     resetProgress,
+    etaSeconds,
     liveLinesStore,
     clearLiveLines,
     recordLiveLine,

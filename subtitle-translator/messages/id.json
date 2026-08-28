@@ -100,7 +100,6 @@
     "translateDonePartial": "Baris yang gagal tetap berisi teks asli",
     "translateDoneIncomplete": "Sebagian item belum selesai",
     "multiTranslating": "Menerjemahkan, total bahasa:",
-    "currentLanguageProgress": "{lang} ({index}/{total})",
     "model": "Model",
     "sameLanguageTarget": "Bahasa sumber dan target sama; target otomatis disesuaikan ke",
     "sameLanguageSource": "Bahasa sumber dan target sama; sumber otomatis disesuaikan ke",
@@ -210,7 +209,8 @@
     "errorHintGeminiKey": "Tidak dapat terhubung ke Gemini: periksa jaringan Anda terlebih dahulu (beberapa jaringan tidak dapat mengakses layanan Google secara langsung). Jika jaringan baik-baik saja, sejak 19 Juni 2026 Google menolak kunci API tanpa pembatasan — buat ulang kunci di AI Studio (dibatasi secara default) atau tambahkan pembatasan Gemini API pada kunci lama di Google Cloud Console",
     "rateLimitCooldown": "Batas permintaan tercapai — jeda sejenak, akan dicoba ulang otomatis",
     "downloadZip": "Unduh ZIP",
-    "downloadZipPending": "Tersedia setelah terjemahan selesai"
+    "downloadZipPending": "Tersedia setelah terjemahan selesai",
+    "estimatedTimeRemaining": "~{time} tersisa"
   },
   "SubtitleTranslator": {
     "clientDescription": "Unggah subtitle atau tempel konten. Pilih bahasa target untuk terjemahan cepat. Mendukung pemrosesan batch dan mempertahankan timeline.",

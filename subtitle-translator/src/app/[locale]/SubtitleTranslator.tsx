@@ -117,8 +117,7 @@ const SubtitleTranslator = () => {
     progressPercent,
     setProgressPercent,
     progressInfo,
-    currentLangProgress,
-    setCurrentLangProgress,
+    etaSeconds,
     handleLanguageChange,
     handleSwapLanguages,
     validate,
@@ -342,26 +341,33 @@ const SubtitleTranslator = () => {
     // 跟踪当前文件是否有任何 lang 翻译失败;末尾合并到 failedFilesRef
     let hasFailedLang = false;
 
-    for (const [langPos, currentTargetLang] of targetLangs.entries()) {
+    // ⚠ 进度不能只按"文件"分段 —— 多语言模式下,同一个文件要跑 targetLangs.length
+    // 次 translateBatch,而下面这行本来对每个语言都传同一对 (fileIndex, totalFiles)。
+    // translateBatch 内部按 (fileIndex + current/total)/totalFiles 算全局 %,拿同一对
+    // 分母跑 N 次语言,每个语言各自的 batch 都会把 current/total 从 0 冲到 total,于是
+    // 进度条在同一个文件区间里反复"冲到顶再摔回底部再冲顶"——这就是"% 跳来跳去、
+    // 看着像按文件/按语言分段"的根源,不是显示层的锅,是分母算错了。
+    // 把"文件 × 语言"拉平成一条连续的 segment 序列(segmentIndex/totalSegments),
+    // 传给 translateBatch 代替裸的 fileIndex/totalFiles,进度就在整个批次里单调爬升。
+    const langCount = Math.max(targetLangs.length, 1);
+    const totalSegments = Math.max(totalFiles ?? 1, 1) * langCount;
+
+    for (let langIdx = 0; langIdx < targetLangs.length; langIdx++) {
+      const currentTargetLang = targetLangs[langIdx];
+      const segmentIndex = (fileIndex ?? 0) * langCount + langIdx;
       // 取消刹车:translateBatch 的入口守卫本来也会把后续语言逐个抛掉(级联标记
       // → 下面 catch 静默 continue),在这里刹住只是不做那 N 次空转。
       if (isCancelRequested()) break;
       // 每个语言(或文件)开始前清掉上一轮的实时行 —— 新一轮结果从空列表
       // 重新累积(多语言循环里每个 lang 的流是独立的)。
       clearLiveLines();
-      // 进度条右侧的 current/total 是"这个语言自己的"行计数，每换一个语言就从
-      // 0 重新数——不报"现在是第几个语言"的话，那个数字在用户眼里就是无缘无故
-      // 跳来跳去。只在多语言模式下才有意义，单语言模式没有这个概念。
-      if (multiLanguageMode) {
-        setCurrentLangProgress({ index: langPos + 1, total: targetLangs.length, label: sourceOptions.find((o) => o.value === currentTargetLang)?.label || currentTargetLang });
-      }
       try {
         // Translate content using the specific target language
         // 软填(保留原文)槽位:removeChars 绝不能碰 —— 碰了就写出既非原文也非
         // 译文的东西,而失败面板同屏正说着"失败的行已保留原文"。
         // 规则与 CLI 共用同一份实现:lib/translation/softFill。
         const softFilled = new Set<number>();
-        const rawTranslatedLines = await translateBatch(cleanLines, translationMethod, currentTargetLang, fileIndex, totalFiles, contextAware ? "subtitle" : undefined, {
+        const rawTranslatedLines = await translateBatch(cleanLines, translationMethod, currentTargetLang, segmentIndex, totalSegments, contextAware ? "subtitle" : undefined, {
           lineNumbers: sourceLineNumbers,
           fileName,
           collectSoftFilled: softFilled,
@@ -493,11 +499,6 @@ const SubtitleTranslator = () => {
       }
     }
 
-    // 本文件的语言循环走完(正常跑完/取消/全失败都算)——清掉"当前语言"标记,
-    // 免得下一个文件的循环还没跑到第一次 setCurrentLangProgress 之前,strip
-    // 上闪一下"上一个文件最后翻的那个语言"。
-    if (multiLanguageMode) setCurrentLangProgress(null);
-
     if (hasFailedLang) noteFileFailure();
 
     // Show success message after all languages completed (for single file multi-language mode);
@@ -546,7 +547,9 @@ const SubtitleTranslator = () => {
             currentFile,
             async (text) => {
               await performTranslation(text, currentFile.name, i, multipleFiles.length);
-              await delay(1500);
+              // 原为 1500ms —— 同上，纯节流停顿。多文件批次里每个文件之间都要
+              // 等，5 个文件就是 7.5s 白等，缩到 300ms。
+              await delay(300);
               resolve();
             },
             // Decode/read failure: mark this file failed (so succeeded=total-failed is
@@ -751,8 +754,6 @@ const SubtitleTranslator = () => {
               onDismiss={resetProgress}
               multiLanguageMode={multiLanguageMode}
               targetLanguageCount={targetLanguages.length}
-              currentLangIndex={currentLangProgress?.index}
-              currentLangLabel={currentLangProgress?.label}
               failed={failedCount > 0 || failedLangs.length > 0 || runHadFailures}
               lineFailures={failedCount > 0}
               currentCount={progressInfo.current}
@@ -764,6 +765,7 @@ const SubtitleTranslator = () => {
               downloadReady={!isTranslating && zipReady}
               downloadCount={zipFileCount}
               downloadTotal={zipFileTotal}
+              etaSeconds={etaSeconds}
             />
 
             {/* 实时逐行结果 —— 与进度条并行:每定稿一行立即出现,不等整批。

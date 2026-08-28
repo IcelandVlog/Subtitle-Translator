@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { App } from "antd";
 import { useTranslations } from "next-intl";
 import { normalizeNewlines, decodeFileBytes, getErrorMessage } from "@/app/utils";
+import { useLocalStorage } from "@/app/hooks/useLocalStorage";
 import type { UploadFile, UploadProps } from "antd";
 
 // Shared dedup predicate: match by name + size
@@ -13,25 +14,15 @@ const useFileUpload = () => {
   const t = useTranslations("common");
   const [sourceText, setSourceText] = useState<string>("");
   const [multipleFiles, setMultipleFiles] = useState<File[]>([]);
-  // uploadMode 是 multipleFiles.length 的纯派生值,不再单独 setState —— 之前
-  // 把它存成独立 state,靠三处(handleFileUpload / handleUploadRemove /
-  // handleUploadChange)各自在合适时机 setUploadMode 来同步,一次选多个文件时
-  // React 把同一批 setState 批处理成一次渲染,这些地方读到的都是【批处理开始前】
-  // 的旧值,互相打架,导致 5 个文件选完只剩最后 1 个生效。派生值没有"该在哪个
-  // 时机同步"这个问题,读到的永远是当下的真实文件数。
-  const uploadMode: "single" | "multiple" = multipleFiles.length > 1 ? "multiple" : "single";
+  const [uploadMode, setUploadMode] = useState<"single" | "multiple">("single");
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  // multipleFiles 的镜像,但是 ref —— 不经过 React 的批处理。一次选多个文件时,
-  // 浏览器对每个文件各触发一次 customRequest,这些调用都发生在【同一个】原生
-  // change 事件里、React 还没来得及把前几次 setState 提交成新的一次渲染,所以
-  // 如果靠 state(哪怕是函数式更新的闭包参数 prevFiles)去判断"这是第几个文件"
-  // 或"现在总共有几个",读到的都可能是这批操作开始前的旧快照。ref 赋值是同步的、
-  // 立即生效,同一批里第 2、3...个文件的处理都能看到前面刚追加的结果,可以在
-  // 事件处理函数里就地做出"该不该现在就读文件内容进 sourceText"的正确判断,
-  // 不需要额外借助 useEffect(经 React Compiler 检查会因"在 effect 里同步
-  // setState"报错,详见下方 startReadIfSingle 的注释)。
-  const filesRef = useRef<File[]>([]);
-  const [singleFileMode, setSingleFileMode] = useState(false);
+  // Default true: without this, a second upload ACCUMULATES onto the first
+  // (Dragger's `multiple` prop) instead of replacing it, silently flipping
+  // uploadMode to "multiple" and translating/exporting both files even though
+  // the user only meant to translate the one they just dropped in. Batch
+  // translation is still available — the user just has to turn this off (or
+  // select several files at once), rather than it being the surprising default.
+  const [singleFileMode, setSingleFileMode] = useLocalStorage<boolean>("translation-singleFileMode", true);
   const [isFileProcessing, setIsFileProcessing] = useState<boolean>(false);
   // 读取序号守卫:FileReader.onload / decodeFileBytes 都是异步,一次读取尚未完成时
   // 又发起新读取(连续换文件)或清空(resetUpload),旧读的回调若晚到会用旧内容
@@ -96,11 +87,10 @@ const useFileUpload = () => {
 
   const resetUpload = () => {
     loadSeq.current++; // 取消所有在途读取:清空后过期 onload 不得把内容写回来
-    filesRef.current = [];
     setFileList([]);
     setMultipleFiles([]);
     setSourceText("");
-    // uploadMode 现在是派生值,multipleFiles 清空后自动回到 "single",无需再手动设。
+    setUploadMode("single");
   };
 
   const handleUploadChange: UploadProps["onChange"] = ({ fileList }: { fileList: UploadFile[] }) => {
@@ -115,39 +105,25 @@ const useFileUpload = () => {
     const uniqueFileList = updatedFileList.filter((value, index, self) => index === self.findIndex((t) => isDuplicateFile(t, value)));
     setFileList(uniqueFileList);
 
-    // 单/多模式切换已经交给 uploadMode 的派生值 + handleFileUpload/handleUploadRemove
-    // 里对 filesRef 的同步更新处理(见上方),这里不再重复判断 —— 原先这里读
-    // uploadMode 跟 handleFileUpload 里那份是同一个批处理陷阱,两处各判一次反而
-    // 更容易前后矛盾。这里只保留"清空到 0 个文件"这一支,因为它不涉及模式判断,
-    // 直接重置即可。
-    if (uniqueFileList.length === 0) {
+    if (uniqueFileList.length > 1 && uploadMode === "single") {
+      setSourceText("");
+      setUploadMode("multiple");
+    } else if (uniqueFileList.length === 0) {
       resetUpload();
     }
   };
 
-  // 数组最终恰好剩 1 个文件时(无论是新上传只有它一个,还是从多个删到只剩它),
-  // 把它的内容读进 sourceText 供单文件模式的 SourceArea 显示/编辑;超过 1 个
-  // 文件时 uploadMode 派生为 "multiple",SourceArea 不渲染,不需要读进 sourceText
-  // (handleMultipleTranslate 会在真正翻译时各自读取每个文件)。
-  const startReadIfSingle = (files: File[]) => {
-    if (files.length === 1) readFile(files[0], latestSourceWriter());
-  };
-
-  // 一次选多个文件时,浏览器对每个文件各触发一次 customRequest,但 React 18/19
-  // 会把同一个原生 change 事件里的所有 setState 批处理成一次渲染 —— 也就是说
-  // 处理第 2、3...个文件时,若靠 state(哪怕是函数式更新里的 prevFiles 参数)
-  // 判断"现在总共有几个文件",读到的可能仍是这批操作开始前的旧快照。
-  // filesRef 的赋值是同步、立即生效的,不受 React 批处理影响,所以这里既用它
-  // 追加/去重,又直接拿它算出的最终长度决定要不要现在就读文件内容 —— 全部在
-  // 这一次事件处理函数调用里就地完成,批内每个文件各自都能看到前面刚追加的
-  // 结果,不会互相用旧值覆盖。
   const handleFileUpload = (uploadedFile: File) => {
-    if (filesRef.current.some((f) => isDuplicateFile(f, uploadedFile))) return false;
-
-    const updatedFiles = [...filesRef.current, uploadedFile];
-    filesRef.current = updatedFiles;
-    setMultipleFiles(updatedFiles);
-    startReadIfSingle(updatedFiles);
+    if (uploadMode === "single") {
+      setSourceText("");
+      setMultipleFiles([uploadedFile]);
+      readFile(uploadedFile, latestSourceWriter());
+    } else {
+      setMultipleFiles((prevFiles) => {
+        if (prevFiles.some((f) => isDuplicateFile(f, uploadedFile))) return prevFiles;
+        return [...prevFiles, uploadedFile];
+      });
+    }
 
     // antd Upload uses `false` return to suppress its default XHR upload —
     // we just collect the file into state and process locally.
@@ -158,11 +134,17 @@ const useFileUpload = () => {
     const updatedFileList = fileList.filter((f) => f.uid !== file.uid);
     setFileList(updatedFileList);
 
-    const updatedFiles = filesRef.current.filter((f) => !isDuplicateFile(f, file));
-    filesRef.current = updatedFiles;
-    setMultipleFiles(updatedFiles);
-    // 降到 1 个文件时,把它的内容读进 sourceText,切回单文件模式的显示。
-    startReadIfSingle(updatedFiles);
+    setMultipleFiles((prevFiles) => {
+      const updatedMultipleFiles = prevFiles.filter((f) => !isDuplicateFile(f, file));
+
+      // Down to one file → flip back to single mode + load its content.
+      if (updatedMultipleFiles.length === 1 && uploadMode === "multiple") {
+        setUploadMode("single");
+        readFile(updatedMultipleFiles[0], latestSourceWriter());
+      }
+
+      return updatedMultipleFiles;
+    });
   };
 
   return {

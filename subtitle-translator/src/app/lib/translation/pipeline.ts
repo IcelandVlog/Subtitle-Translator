@@ -1273,7 +1273,6 @@ const runTranslateLines = async (
     const text = nonBlankLines.join(delimiter);
     const chunkSize = config.chunkSize || 5000;
     const chunks = splitTextIntoChunks(text, chunkSize, delimiter);
-    const translatedChunks: string[] = [];
 
     // 进度按【行】累计上报,不按块:块数对用户无意义(30 行字幕 1 块会显示
     // "1 / 1"),且 projection 弹窗把 current/total 渲染为 "CUE x / y"。
@@ -1299,12 +1298,45 @@ const runTranslateLines = async (
     // 上:对软填的源文套术语表会产出 "斯派克, hi" 式半本地化混合体,这正是
     // context/line 路径注释里明令禁止、失败面板又声称"保留了原文"的腐败输出。
     const failedK = new Set<number>();
-    let chunkStartK = 0;
+
+    // chunkLineCounts / chunkStartKs 提前算好(而不是像旧版那样在循环体里靠
+    // `chunkStartK += chunkLineCount` 累加):下面把这个循环换成 pLimit 并发后,
+    // 各 chunk 任务不再按顺序执行,谁先跑完不确定 —— 累加式写法在并发下会把
+    // 后一个 chunk 的行号起点算错(读到的是还没轮到自己的 chunkStartK)。
+    // 每个 chunk 的起点只依赖它前面所有 chunk 的行数,与执行顺序无关,所以
+    // 提前用 prefix sum 定死,任务内部只读不写。
+    const chunkLineCounts = chunks.map((c) => c.split(delimiter).length);
+    const chunkStartKs: number[] = [];
+    {
+      let acc = 0;
+      for (const n of chunkLineCounts) {
+        chunkStartKs.push(acc);
+        acc += n;
+      }
+    }
+    // translatedChunks 改成【预分配定长数组按下标写】,不再 push:并发下任务
+    // 完成顺序和 chunk 顺序不一致,push 会把结果拼接顺序打乱(第 3 块比第 1 块
+    // 先跑完的话,join 出来的整段文本行序就错了)。
+    const translatedChunks: string[] = new Array(chunks.length);
+
+    // Chunk 请求并发跑,并发数取该 provider 配置的 batchSize(未设时退回 1,
+    // 与旧版逐块串行等价)——沿用上面 LLM 主循环同款的 pLimit + 每槽可选节流
+    // 模式。DeepL 官方 API 等严格限流的 provider 在 registry 里把 batchSize
+    // 设成 1,这里天然保持串行;GTX 免费端点等宽松 provider 配的 batchSize
+    // 100 才终于生效 —— 这正是"GTX 明明配了高并发却还是一块块顺序跑"变慢的
+    // 根因:旧版这个 for 循环从头到尾都是纯串行 await,完全没读 batchSize。
+    const chunkConcurrency = positiveInt(config.batchSize, 1);
+    const chunkLimit = pLimit(chunkConcurrency);
+    const chunkTasks: Promise<void>[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
-      const chunkLineCount = chunks[i].split(delimiter).length;
-      let processed: string;
-      try {
+      chunkTasks.push(
+        chunkLimit(async () => {
+          if (runController.signal.aborted) return;
+          const chunkLineCount = chunkLineCounts[i];
+          const chunkStartK = chunkStartKs[i];
+          let processed: string;
+          try {
         const translatedContent = await translateSingle(chunks[i], cacheSuffix, runtimeConfig, ctx, fullText);
         processed = config.translationMethod === "deeplx" ? (translatedContent || "").replace(/<>/g, "\n") : translatedContent || "";
       } catch (error) {
@@ -1412,12 +1444,22 @@ const runTranslateLines = async (
           ctx.emitLine({ index: i, original: contentLines[i], translation: applyGlossary(ctx, translated, config.targetLanguage) });
         }
       }
-      translatedChunks.push(processed);
-      chunkStartK += chunkLineCount;
-      chunkLinesDone += chunkLineCount;
-      ctx.onProgress?.(chunkLinesDone, totalChunkLines);
-      if (i < chunks.length - 1) await abortableSleep(config.delayTime || 200, runController.signal);
+          translatedChunks[i] = processed;
+          chunkLinesDone += chunkLineCount;
+          ctx.onProgress?.(chunkLinesDone, totalChunkLines);
+          // pLimit 已经把并发夹在 chunkConcurrency 内;这里是【每个已完成任务】后
+          // 的可选额外间隔(用户配的 delayTime),给严格限流的 provider 多一层
+          // 缓冲 —— 与上面 LLM 主循环的 interBatchDelay 同一个用意。旧版这里判
+          // `i < chunks.length - 1` 跳过最后一块的延迟,并发下"最后一块"已经
+          // 没有固定含义,干脆每块完成后都可能延迟一下,代价只是尾部多等一个
+          // delayTime,可忽略。
+          if ((config.delayTime ?? 200) > 0 && !runController.signal.aborted) {
+            await abortableSleep(config.delayTime || 200, runController.signal);
+          }
+        }),
+      );
     }
+    await Promise.all(chunkTasks);
 
     // Materialize failures from failedK → pristine source line + real line number
     // (meta.lineNumbers maps the contentLines index to the physical source line

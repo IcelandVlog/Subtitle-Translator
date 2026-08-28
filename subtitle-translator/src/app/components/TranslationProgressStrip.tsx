@@ -26,15 +26,6 @@ interface TranslationProgressStripProps {
   multiLanguageMode?: boolean;
   /** Number of target languages */
   targetLanguageCount?: number;
-  /**
-   * 多语言循环里"现在正在译第几个语言"(1-based)。currentCount/totalCount
-   * 是【该语言自己的】行计数,每换一个语言就从头数——不报这个的话,用户只
-   * 看见那对数字来回跳(比如 667→132→404),像是坏了。传了才知道"换语言了",
-   * 不是随机跳动。
-   */
-  currentLangIndex?: number;
-  /** 当前正在译的语言的显示名(与 currentLangIndex 一起报,单独一个没意义)。 */
-  currentLangLabel?: string;
   /** Lines / items completed so far — rendered as a "current / total" hint */
   currentCount?: number;
   /** Total lines / items — omit (or 0) to hide the hint */
@@ -70,7 +61,22 @@ interface TranslationProgressStripProps {
    * 省略(或 0)时按钮退回旧的纯计数展示。
    */
   downloadTotal?: number;
+  /**
+   * 剩余时间估算(秒)—— 按【全局百分比 vs 已耗时】线性外推,与多文件/多语言
+   * 无关,是同一份 percent 的第二种读法。null = 还没攒够样本(<5%)或没在跑。
+   */
+  etaSeconds?: number | null;
 }
+
+/** 02:30 风格的 mm:ss,超过一小时补一段 h:mm:ss —— 纯数字,不需要按语言翻译单位词。 */
+const formatEta = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
+};
 
 /**
  * 内联翻译进度条 —— 前身是全屏的 TranslationProgressModal,砍掉遮罩改为内联,
@@ -89,7 +95,7 @@ interface TranslationProgressStripProps {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentLangIndex, currentLangLabel, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0 }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -151,6 +157,14 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
           </div>
 
           <Progress percent={displayPercent} status={done ? "success" : stopped ? "normal" : "active"} strokeColor={stopped ? token.colorWarning : undefined} showInfo={false} strokeLinecap="butt" size={{ height: 6 }} style={{ marginBottom: 0, lineHeight: 1 }} />
+          {/* 只在真的还在跑、且样本够(hook 侧 progress>=5 才给数)时才画 ——
+              done/stopped 已经【没有】「剩多久」这个问题,画出来是在回答一个
+              不存在的问题。 */}
+          {isTranslating && etaSeconds !== null && (
+            <div className="font-mono" style={{ ...monoCaps, color: token.colorTextTertiary, marginTop: 6, textAlign: "right" }}>
+              {t("estimatedTimeRemaining", { time: formatEta(etaSeconds) })}
+            </div>
+          )}
         </>
       )}
 
@@ -170,15 +184,6 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
             {isTranslating && multiLanguageMode && targetLanguageCount > 0 && (
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {t("multiTranslating")} <Text strong>{targetLanguageCount}</Text>
-                {/* 当前在译第几个语言——没有这个的话,右上角那对 current/total
-                    (该语言自己的行计数)换语言时会从头数起,用户看不出"换语言了",
-                    只看见数字往回跳。 */}
-                {typeof currentLangIndex === "number" && currentLangLabel && (
-                  <>
-                    {" · "}
-                    {t("currentLanguageProgress", { index: currentLangIndex, total: targetLanguageCount, lang: currentLangLabel })}
-                  </>
-                )}
               </Text>
             )}
           </span>

@@ -60,7 +60,7 @@ const useTranslationState = () => {
   const { readFile } = useFileUpload();
 
   // State
-  const [useCache, setUseCache] = useState<boolean>(true);
+  const [useCache, setUseCache] = useLocalStorage<boolean>("translation-useCache", true);
   // Drawer for the full provider/model/prompt config surface. Replaces the
   // previous "Advanced" Tab; sits per-translator inside TranslationProvider.
   const [apiSettingsOpen, setApiSettingsOpen] = useState<boolean>(false);
@@ -164,19 +164,7 @@ const useTranslationState = () => {
   };
 
   // Extracted concerns
-  const { isTranslating, setIsTranslating, progressPercent, setProgressPercent, progressInfo, abortControllerRef, disposedRef, makeUpdateProgress, resetProgress: resetProgressBase, liveLinesStore, clearLiveLines, recordLiveLine, markLiveLinesFailed } = useTranslationProgress();
-
-  // 多语言循环里"当前正在译哪个语言"——进度条右侧的 current/total 是【该语言
-  // 自己的】行计数，每换一个语言就从 0 重新数起。不报这个的话，那个数字在
-  // 用户眼里就是"莫名其妙地跳来跳去"（比如 667→132→404），而不是"换语言了"。
-  // 单语言模式恒为 null（strip 只在 multiLanguageMode 时读它）。
-  const [currentLangProgress, setCurrentLangProgress] = useState<{ index: number; total: number; label: string } | null>(null);
-  // resetProgress 顺带清掉当前语言标记——否则上一轮跑完/取消后，这个状态会
-  // 原地悬着，下一轮真正开始前的一瞬间 strip 上会闪一下"上一轮最后的语言"。
-  const resetProgress = () => {
-    resetProgressBase();
-    setCurrentLangProgress(null);
-  };
+  const { isTranslating, setIsTranslating, progressPercent, setProgressPercent, progressInfo, abortControllerRef, disposedRef, makeUpdateProgress, resetProgress, etaSeconds, liveLinesStore, clearLiveLines, recordLiveLine, markLiveLinesFailed } = useTranslationProgress();
 
   // ─── 取消 ────────────────────────────────────────────────────────────────
   // 取消【完全复用】既有的级联中止链路:abort 本轮 controller → 在飞请求与
@@ -896,8 +884,7 @@ const useTranslationState = () => {
     progressPercent,
     setProgressPercent,
     progressInfo,
-    currentLangProgress,
-    setCurrentLangProgress,
+    etaSeconds,
     handleLanguageChange,
     handleSwapLanguages,
     retryCount,
