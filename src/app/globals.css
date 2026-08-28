@@ -239,3 +239,14 @@ html.light body::before {
     opacity: 0.7 !important;
   }
 }
+
+/*
+ * Upload list row's per-file remove (delete) icon: antd only shows it on
+ * :hover by default, which leaves it invisible until a mouse hovers over
+ * the row — the file remove icon sits exactly where the screenshot's red
+ * circle points, but with opacity 0 at rest. Force it always visible so
+ * every row has a tappable/clickable delete affordance without hovering.
+ */
+.ant-upload-list-item-actions .ant-upload-list-item-action {
+  opacity: 1 !important;
+}
