@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Flex, Card, Button, Typography, Input, Upload, Form, Space, App, Tooltip, Segmented, Spin, Row, Col, Divider, Collapse, Alert, theme } from "antd";
 import { SettingOutlined, CopyOutlined, InboxOutlined, FileTextOutlined, ClearOutlined, FormatPainterOutlined, GlobalOutlined, ImportOutlined, SaveOutlined, ControlOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
@@ -37,6 +37,7 @@ import ContextTranslationBlock from "@/app/components/ContextTranslationBlock";
 import TranslationProgressStrip from "@/app/components/TranslationProgressStrip";
 import LiveTranslationResults from "./LiveTranslationResults";
 import TranslationHistory from "@/app/components/TranslationHistory";
+import MiniProgressWindow, { openMiniWindow } from "@/app/components/MiniProgressWindow";
 import { saveTranslationOutput, saveTranslationBatch, saveTranslationJob, type SavedFile } from "@/app/lib/supabase/history";
 import { useTranslationContext } from "@/app/components/TranslationContext";
 import ResultCard from "@/app/components/ResultCard";
@@ -618,6 +619,30 @@ const SubtitleTranslator = () => {
     if (zipQueueRef.current.length > 0) void saveTranslationBatch(zipQueueRef.current.map(({ name, content }) => ({ name, content })));
   };
 
+  // 小窗口:显示进度,不影响翻译。关闭按钮或翻译结束后关闭。
+  const [miniWin, setMiniWin] = useState<Window | null>(null);
+  const closeMini = useCallback(() => {
+    setMiniWin((w) => {
+      try {
+        w?.close();
+      } catch {
+        // already closed
+      }
+      return null;
+    });
+  }, []);
+  const handlePopOut = async () => {
+    const w = await openMiniWindow();
+    if (w) setMiniWin(w);
+    else message.warning("Could not open the progress window. Allow popups for this site.");
+  };
+  // Finished: keep the final state briefly, then close. Paused/cancelled stays open (Continue).
+  useEffect(() => {
+    if (!miniWin || isTranslating || progressPercent < 100) return;
+    const timer = setTimeout(closeMini, 4000);
+    return () => clearTimeout(timer);
+  }, [miniWin, isTranslating, progressPercent, closeMini]);
+
   // 暂停:先停止(已译行已在行缓存里),再把原文件 + 当前设置存成「已暂停」任务,历史里可「继续」。
   const handlePause = async () => {
     pauseTranslation();
@@ -795,6 +820,7 @@ const SubtitleTranslator = () => {
               percent={progressPercent}
               onCancel={requestCancel}
               onPause={useCache ? handlePause : undefined}
+              onPopOut={handlePopOut}
               onResume={useCache ? handleTranslateClick : undefined}
               resumable={useCache}
               onDismiss={resetProgress}
@@ -1089,6 +1115,20 @@ const SubtitleTranslator = () => {
         setTargetLanguages={setTargetLanguages}
         setMultiLanguageMode={setMultiLanguageMode}
       />
+
+      {miniWin && (
+        <MiniProgressWindow
+          win={miniWin}
+          percent={progressPercent}
+          current={progressInfo.current}
+          total={progressInfo.total}
+          running={isTranslating}
+          onPause={handlePause}
+          onResume={useCache ? handleTranslateClick : undefined}
+          onCancel={requestCancel}
+          onClose={closeMini}
+        />
+      )}
 
       <AssStyleDrawer
         open={assStyleOpen}

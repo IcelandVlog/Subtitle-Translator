@@ -1,8 +1,0 @@
-.git
-.github
-node_modules
-out
-*.log
-.DS_Store
-coverage
-.next

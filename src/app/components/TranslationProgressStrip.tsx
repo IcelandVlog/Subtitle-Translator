@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { Button, ConfigProvider, Progress, Tooltip, Typography, theme } from "antd";
 import { CaretRightOutlined, CloseOutlined, DownloadOutlined, PauseOutlined } from "@ant-design/icons";
+import { PipIcon } from "@/app/components/MiniProgressWindow";
 import { useTranslations } from "next-intl";
 
 const { Text } = Typography;
@@ -16,6 +17,8 @@ interface TranslationProgressStripProps {
   onCancel?: () => void;
   /** 暂停:停止本轮但保留行缓存(需要 resumable) */
   onPause?: () => void;
+  /** 打开一个小的进度窗口(可以放在一边,不影响其他操作) */
+  onPopOut?: () => void;
   /** 继续:停在 STOPPED 态时从缓存处接着跑 */
   onResume?: () => void;
   /** Dismiss the held DONE / STOPPED state (resets progress so the strip closes) */
@@ -101,7 +104,7 @@ const formatEta = (totalSeconds: number): string => {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onPause, onResume, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, singleFileExport = false, etaSeconds = null }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onPause, onPopOut, onResume, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, singleFileExport = false, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -216,6 +219,11 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onPause, o
           )}
           {isTranslating ? (
             <ConfigProvider button={{ autoInsertSpace: false }}>
+              {onPopOut && (
+                <Button size="small" icon={<PipIcon />} onClick={onPopOut} style={{ flexShrink: 0 }}>
+                  Mini
+                </Button>
+              )}
               {onPause && (
                 <Button size="small" icon={<PauseOutlined />} onClick={onPause} style={{ flexShrink: 0 }}>
                   {t("pause")}
