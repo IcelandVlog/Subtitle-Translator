@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { normalizeNewlines, decodeFileBytes, getErrorMessage } from "@/app/utils";
 import { useLocalStorage } from "@/app/hooks/useLocalStorage";
 import type { UploadFile, UploadProps } from "antd";
-import { isZipFile, extractSubtitlesFromZip } from "@/app/utils/archive";
+import { isArchiveFile, extractSubtitlesFromArchive } from "@/app/utils/archive";
 
 // Shared dedup predicate: match by name + size
 const isDuplicateFile = (a: { name: string; size?: number }, b: { name: string; size?: number }): boolean => a.name === b.name && a.size === b.size;
@@ -98,7 +98,7 @@ const useFileUpload = () => {
 
   const handleUploadChange: UploadProps["onChange"] = ({ fileList }: { fileList: UploadFile[] }) => {
     // zip 本身不进列表:它的字幕文件由 addArchiveFiles 异步展开后再加入
-    const updatedFileList: UploadFile[] = fileList.filter((f) => !isZipFile(f)).map((f) => ({
+    const updatedFileList: UploadFile[] = fileList.filter((f) => !isArchiveFile(f)).map((f) => ({
       uid: f.uid,
       name: f.name,
       status: "done",
@@ -132,7 +132,7 @@ const useFileUpload = () => {
       originFileObj: f as UploadFile["originFileObj"],
     }));
 
-    setFileList((prev) => [...prev.filter((f) => !isZipFile(f)), ...uploads]);
+    setFileList((prev) => [...prev.filter((f) => !isArchiveFile(f)), ...uploads]);
 
     // 用 ref 取当前列表(updater 内赋值的变量在 React 里不保证同步可读)
     const next: File[] = [...multipleFilesRef.current];
@@ -152,8 +152,8 @@ const useFileUpload = () => {
   };
 
   const handleFileUpload = (uploadedFile: File) => {
-    if (isZipFile(uploadedFile)) {
-      extractSubtitlesFromZip(uploadedFile)
+    if (isArchiveFile(uploadedFile)) {
+      extractSubtitlesFromArchive(uploadedFile)
         .then((extracted) => addArchiveFiles(uploadedFile, extracted))
         .catch((error) => message.error(`${uploadedFile.name}: ${getErrorMessage(error)}`));
       return false;

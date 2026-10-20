@@ -682,7 +682,7 @@ const SubtitleTranslator = () => {
                 clearResults();
                 handleFileUpload(file as File);
               }}
-              accept={`${uploadFileTypes.accept},.zip`}
+              accept={`${uploadFileTypes.accept},.zip,.rar`}
               multiple={!singleFileMode}
               showUploadList
               beforeUpload={singleFileMode ? resetUpload : undefined}
@@ -697,7 +697,7 @@ const SubtitleTranslator = () => {
               </p>
               <p className="ant-upload-text">{t("dragAndDropText")}</p>
               <p className="ant-upload-hint">
-                {t("supportedFormats")} {uploadFileTypes.label}, .zip
+                {t("supportedFormats")} {uploadFileTypes.label}, .zip, .rar (archive containing these)
               </p>
             </Dragger>
 

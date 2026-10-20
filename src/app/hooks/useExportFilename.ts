@@ -32,6 +32,15 @@ interface ExportFilenameConfig {
  * - {date} - current date (YYYY-MM-DD)
  * - {time} - current time (HHMMss)
  */
+/**
+ * Language code written into exported filenames, where it differs from the
+ * internal code used by the translation engines (e.g. fil → fil-tl).
+ * Only affects {lang} / language suffix in file names, not API requests.
+ */
+const EXPORT_LANG_CODE: Record<string, string> = {
+  fil: "fil-tl",
+};
+
 export const useExportFilename = (toolKey: string = "default"): ExportFilenameConfig => {
   const storageKey = `${toolKey}-exportFileName`;
   // Default is the CLEAN `{name}.{ext}` — most exports are single-language and
@@ -71,7 +80,8 @@ export const useExportFilename = (toolKey: string = "default"): ExportFilenameCo
     // 文件名本身含 "{lang}"/"{date}"(i18n 模板文件 strings_{lang}.json、
     // 媒体名 "Movie {2023}")时 {name} 展开出的 token 被二次替换,下载名被改写。
     const pattern = customFileName.trim() || "{name}.{ext}";
-    const tokens: Record<string, string> = { name: baseName, lang: langCode, ext, date: dateStr, time: timeStr };
+    const exportLang = EXPORT_LANG_CODE[langCode] ?? langCode;
+    const tokens: Record<string, string> = { name: baseName, lang: exportLang, ext, date: dateStr, time: timeStr };
     let result = pattern.replace(/\{(name|lang|ext|date|time)\}/gi, (_, p: string) => tokens[p.toLowerCase()]);
 
     // Ensure the result has an extension. 是否"已带扩展名"必须基于【用户的
@@ -93,7 +103,7 @@ export const useExportFilename = (toolKey: string = "default"): ExportFilenameCo
     // untouched. Also prevents collisions when several languages share one source.
     if (disambiguateLang && !/\{lang\}/i.test(pattern)) {
       const dot = result.lastIndexOf(".");
-      result = dot > 0 ? `${result.slice(0, dot)}.${langCode}${result.slice(dot)}` : `${result}.${langCode}`;
+      result = dot > 0 ? `${result.slice(0, dot)}.${exportLang}${result.slice(dot)}` : `${result}.${exportLang}`;
     }
 
     return result;
