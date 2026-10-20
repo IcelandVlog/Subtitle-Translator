@@ -129,8 +129,6 @@
     "search": "Pesquisar",
     "noMatches": "Nenhuma ferramenta correspondente",
     "clearAll": "Limpar tudo",
-    "pause": "Pausar",
-    "resume": "Retomar",
     "cancel": "Cancelar",
     "apply": "Aplicar",
     "batchEditMultiLangTooltip": "Configurar rapidamente destinos de tradução multilíngue",

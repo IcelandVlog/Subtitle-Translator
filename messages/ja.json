@@ -129,8 +129,6 @@
     "search": "検索",
     "noMatches": "一致するツールがありません",
     "clearAll": "すべてクリア",
-    "pause": "一時停止",
-    "resume": "再開",
     "cancel": "キャンセル",
     "apply": "適用",
     "batchEditMultiLangTooltip": "複数言語の翻訳先を素早く設定",

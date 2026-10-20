@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Flex, Card, Button, Typography, Input, Upload, Form, Space, App, Tooltip, Segmented, Spin, Row, Col, Divider, Collapse, Alert, theme } from "antd";
 import { SettingOutlined, CopyOutlined, InboxOutlined, FileTextOutlined, ClearOutlined, FormatPainterOutlined, GlobalOutlined, ImportOutlined, SaveOutlined, ControlOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
@@ -36,9 +36,6 @@ import ApiStatusBlock from "@/app/components/ApiStatusBlock";
 import ContextTranslationBlock from "@/app/components/ContextTranslationBlock";
 import TranslationProgressStrip from "@/app/components/TranslationProgressStrip";
 import LiveTranslationResults from "./LiveTranslationResults";
-import TranslationHistory from "@/app/components/TranslationHistory";
-import MiniProgressWindow, { openMiniWindow } from "@/app/components/MiniProgressWindow";
-import { saveTranslationOutput, saveTranslationBatch, saveTranslationJob, type SavedFile } from "@/app/lib/supabase/history";
 import { useTranslationContext } from "@/app/components/TranslationContext";
 import ResultCard from "@/app/components/ResultCard";
 import BilingualReviewPanel from "./BilingualReviewPanel";
@@ -78,7 +75,6 @@ const SubtitleTranslator = () => {
     handleUploadRemove,
     handleUploadChange,
     resetUpload,
-    loadFiles,
   } = useFileUpload();
   // ... useTranslationContext destructuring ...
   const {
@@ -126,7 +122,6 @@ const SubtitleTranslator = () => {
     handleSwapLanguages,
     validate,
     requestCancel,
-    pauseTranslation,
     isCancelRequested,
     retryCount,
     setRetryCount,
@@ -218,7 +213,6 @@ const SubtitleTranslator = () => {
   // 「预览 + Export 按钮手动导出单个文件」路径不变。
   const zipQueueRef = useRef<{ name: string; content: string }[]>([]);
   const [zipReady, setZipReady] = useState(false);
-  const [autoStartPending, setAutoStartPending] = useState(false);
   // 队列长度单独镜像成 state:zipQueueRef 是给下载逻辑用的可变累积区,
   // 不能在 render 里直接读 ref.current(React 会警告/报错);按钮上的计数
   // 徽标走这份 state 副本，随每次入队同步更新。
@@ -420,10 +414,10 @@ const SubtitleTranslator = () => {
           // 原生 ASS 重新排版产出 v4.00+,即使源是 .ssa 也回写 .ass(仅双语版被重排)。
           const bilingualExt = fileType === "ass" && assNativeRebuild ? "ass" : getOutputFileExtension(fileType, true, bilingualFormat, sourceExt);
 
-          const translatedOnlyFileName = generateFileName(fileName, langLabel, translatedOnlyExt, true);
+          const translatedOnlyFileName = generateFileName(fileName, langLabel, translatedOnlyExt, multiLanguageMode);
           // bilingual 文件在扩展名前插 _bilingual 后缀,避免跟 translatedOnly 文件同名冲突
           // (ASS/LRC 源、SRT+format=srt 三种场景下两个 ext 相同,不区分会被浏览器覆盖下载)
-          const bilingualFileName = appendBilingualSuffix(generateFileName(fileName, langLabel, bilingualExt, true));
+          const bilingualFileName = appendBilingualSuffix(generateFileName(fileName, langLabel, bilingualExt, multiLanguageMode));
 
           if (isBatchRun) {
             queueZipFile(translatedOnlySubtitle, translatedOnlyFileName);
@@ -453,15 +447,12 @@ const SubtitleTranslator = () => {
           const finalSubtitle = generateSubtitle(needsBilingual, translatedLines, currentTargetLang, softFilled);
           // 原生 ASS 重新排版(双语)产出 v4.00+ → .ass,即使源是 .ssa。
           const fileExt = fileType === "ass" && needsBilingual && assNativeRebuild ? "ass" : getOutputFileExtension(fileType, needsBilingual, bilingualFormat, sourceExt);
-          const downloadFileName = generateFileName(fileName, langLabel, fileExt, true);
+          const downloadFileName = generateFileName(fileName, langLabel, fileExt, multiLanguageMode);
 
           // Always export in multi-language/multi-file mode — queued into the
           // ZIP instead of downloading immediately.
           if (isBatchRun) {
             queueZipFile(finalSubtitle, downloadFileName);
-          } else {
-            // 单文件:成品存历史(queueZipFile 路径已在上面处理)
-            void saveTranslationOutput(downloadFileName, currentTargetLang, finalSubtitle);
           }
 
           if (currentTargetLang === previewLang) {
@@ -604,78 +595,6 @@ const SubtitleTranslator = () => {
     }
   };
 
-  const handleTranslateClick = async () => {
-    // 新一轮开始:清掉上一轮攒下的 ZIP 队列,别让旧文件混进新的
-    // 下载包里(比如换了源文件后忘了下载上一轮的 ZIP)。
-    resetZipQueue();
-    if (uploadMode === "single") {
-      await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
-    } else {
-      await handleMultipleTranslate();
-    }
-    // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
-    // 按钮 —— 不自动下载,交给用户手动点。
-    if (zipQueueRef.current.length > 0) setZipReady(true);
-    if (zipQueueRef.current.length > 0) void saveTranslationBatch(zipQueueRef.current.map(({ name, content }) => ({ name, content })));
-  };
-
-  // 小窗口:显示进度,不影响翻译。关闭按钮或翻译结束后关闭。
-  const [miniWin, setMiniWin] = useState<Window | null>(null);
-  const closeMini = useCallback(() => {
-    setMiniWin((w) => {
-      try {
-        w?.close();
-      } catch {
-        // already closed
-      }
-      return null;
-    });
-  }, []);
-  const handlePopOut = async () => {
-    const w = await openMiniWindow();
-    if (w) setMiniWin(w);
-    else message.warning("Could not open the progress window. Allow popups for this site.");
-  };
-  // Finished: keep the final state briefly, then close. Paused/cancelled stays open (Continue).
-  useEffect(() => {
-    if (!miniWin || isTranslating || progressPercent < 100) return;
-    const timer = setTimeout(closeMini, 4000);
-    return () => clearTimeout(timer);
-  }, [miniWin, isTranslating, progressPercent, closeMini]);
-
-  // 暂停:先停止(已译行已在行缓存里),再把原文件 + 当前设置存成「已暂停」任务,历史里可「继续」。
-  const handlePause = async () => {
-    pauseTranslation();
-    try {
-      const files: SavedFile[] =
-        uploadMode === "single" || multipleFiles.length <= 1
-          ? [{ name: multipleFiles[0]?.name ?? "subtitle.srt", content: sourceText }]
-          : await Promise.all(multipleFiles.map(async (f) => ({ name: f.name, content: await f.text() })));
-      const title = files.length > 1 ? `${files[0].name} (+${files.length - 1} more)` : files[0]?.name ?? "subtitle";
-      if (files[0]?.content) await saveTranslationJob(title, files);
-    } catch (error) {
-      console.warn("Could not save paused job:", error);
-    }
-  };
-
-  // 从历史「继续」:把暂停时的原文件放回上传区;点 Translate 后,已译行从缓存直接复用。
-  const handleContinueJob = (files: SavedFile[]) => {
-    resetZipQueue();
-    clearResults();
-    setAutoStartPending(true);
-    loadFiles(files.map((f) => new File([f.content], f.name, { type: "text/plain" })));
-  };
-
-  // Continue: start translating as soon as the loaded files are ready (single file: its text
-  // has been read; batch: the file list is set). Finished lines come from the cache.
-  useEffect(() => {
-    if (!autoStartPending || isTranslating) return;
-    const ready = uploadMode === "multiple" ? multipleFiles.length > 1 : multipleFiles.length === 1 && sourceText.trim().length > 0;
-    if (!ready) return;
-    setAutoStartPending(false);
-    void handleTranslateClick();
-  }, [autoStartPending, isTranslating, uploadMode, multipleFiles, sourceText]);
-
   const handleExportFile = () => {
     const uploadFileName = multipleFiles[0]?.name || "subtitle";
     // ResultCard 只在 translatedText 非空时渲染,而 translatedText 写入必伴随 ext/lang
@@ -684,7 +603,7 @@ const SubtitleTranslator = () => {
     const langLabel = translatedTextLang ?? targetLanguage;
 
     // Use custom filename if set, otherwise use default pattern
-    let fileName = generateFileName(uploadFileName, langLabel, fileExt, true);
+    let fileName = generateFileName(uploadFileName, langLabel, fileExt, multiLanguageMode);
     // both 模式下的 bilingual 预览要加 _bilingual 后缀,跟翻译时下载的 bilingual 文件名一致
     if (needsBilingualSuffix) {
       fileName = appendBilingualSuffix(fileName);
@@ -763,7 +682,7 @@ const SubtitleTranslator = () => {
                 clearResults();
                 handleFileUpload(file as File);
               }}
-              accept={`${uploadFileTypes.accept},.zip,.rar`}
+              accept={uploadFileTypes.accept}
               multiple={!singleFileMode}
               showUploadList
               beforeUpload={singleFileMode ? resetUpload : undefined}
@@ -778,7 +697,7 @@ const SubtitleTranslator = () => {
               </p>
               <p className="ant-upload-text">{t("dragAndDropText")}</p>
               <p className="ant-upload-hint">
-                {t("supportedFormats")} {uploadFileTypes.label}, .zip, .rar (archive containing these)
+                {t("supportedFormats")} {uploadFileTypes.label}
               </p>
             </Dragger>
 
@@ -802,7 +721,19 @@ const SubtitleTranslator = () => {
                 size="large"
                 icon={<GlobalOutlined spin={isTranslating} />}
                 className="flex-1"
-                onClick={handleTranslateClick}
+                onClick={async () => {
+                  // 新一轮开始:清掉上一轮攒下的 ZIP 队列,别让旧文件混进新的
+                  // 下载包里(比如换了源文件后忘了下载上一轮的 ZIP)。
+                  resetZipQueue();
+                  if (uploadMode === "single") {
+                    await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
+                  } else {
+                    await handleMultipleTranslate();
+                  }
+                  // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
+                  // 按钮 —— 不自动下载,交给用户手动点。
+                  if (zipQueueRef.current.length > 0) setZipReady(true);
+                }}
                 disabled={isTranslating}
                 loading={isTranslating}>
                 {multiLanguageMode ? `${t("translate")} (${targetLanguages.length})` : t("translate")}
@@ -819,9 +750,6 @@ const SubtitleTranslator = () => {
               isTranslating={isTranslating}
               percent={progressPercent}
               onCancel={requestCancel}
-              onPause={useCache ? handlePause : undefined}
-              onPopOut={handlePopOut}
-              onResume={useCache ? handleTranslateClick : undefined}
               resumable={useCache}
               onDismiss={resetProgress}
               multiLanguageMode={multiLanguageMode}
@@ -833,9 +761,8 @@ const SubtitleTranslator = () => {
               // 队列只在「多语言 或 多文件」的批量场景下会被写入(见
               // performTranslation 里的 isBatchRun 判断);单文件单语言的
               // 常规翻译走原有的「预览 + Export 按钮」路径，不需要这颗按钮。
-              onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : translatedText ? handleExportFile : undefined}
-              downloadReady={!isTranslating && (zipReady || (!!translatedText && !multiLanguageMode && multipleFiles.length <= 1))}
-              singleFileExport={!multiLanguageMode && multipleFiles.length <= 1 && !zipReady}
+              onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : undefined}
+              downloadReady={!isTranslating && zipReady}
               downloadCount={zipFileCount}
               downloadTotal={zipFileTotal}
               etaSeconds={etaSeconds}
@@ -1059,8 +986,6 @@ const SubtitleTranslator = () => {
       />
 
       {/* Results Section */}
-      <TranslationHistory onContinue={handleContinueJob} />
-
       {uploadMode === "single" && (translatedText || extractedText) && (
         <div className="mt-6">
           <Row gutter={[24, 24]}>
@@ -1115,20 +1040,6 @@ const SubtitleTranslator = () => {
         setTargetLanguages={setTargetLanguages}
         setMultiLanguageMode={setMultiLanguageMode}
       />
-
-      {miniWin && (
-        <MiniProgressWindow
-          win={miniWin}
-          percent={progressPercent}
-          current={progressInfo.current}
-          total={progressInfo.total}
-          running={isTranslating}
-          onPause={handlePause}
-          onResume={useCache ? handleTranslateClick : undefined}
-          onCancel={requestCancel}
-          onClose={closeMini}
-        />
-      )}
 
       <AssStyleDrawer
         open={assStyleOpen}
