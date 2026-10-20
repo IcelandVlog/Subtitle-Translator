@@ -697,7 +697,7 @@ const SubtitleTranslator = () => {
               </p>
               <p className="ant-upload-text">{t("dragAndDropText")}</p>
               <p className="ant-upload-hint">
-                {t("supportedFormats")} {uploadFileTypes.label}
+                {t("supportedFormats")} {uploadFileTypes.label}, .zip
               </p>
             </Dragger>
 
