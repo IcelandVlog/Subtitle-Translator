@@ -1,4 +1,5 @@
 import { splitBySpaces } from "@/app/utils/textUtils";
+import { languages } from "../languages-data";
 
 /**
  * 字幕翻译的默认值 —— 网页端(SubtitleTranslator 的 useLocalStorage 初值)与
@@ -929,6 +930,20 @@ const buildStyleLine = (name: "Default" | "Secondary", font: string, s: AssLineS
   )},&H000000FF,${outlineColour},&H00000000,0,0,0,0,100,100,0,0,${borderStyle},${s.outline},${s.shadow},${config.alignment},30,30,${config.marginV},1`;
 };
 
+/** 语言代码 → 该语言自己的写法(en → English, bn → বাংলা)。找不到就原样返回代码。 */
+export const nativeLanguageName = (code: string): string => {
+  const base = code.replace(/-tl$/, "");
+  const found = languages.find((l) => l.value === code) ?? languages.find((l) => l.value === base);
+  return found?.nativelabel || code;
+};
+
+/** 把 ASS [Script Info] 里的 Title 改成给定名字;没有 Title 行就补在 [Script Info] 之后。 */
+export const setAssTitle = (text: string, title: string): string => {
+  // [^\r\n] 而非 .:CRLF 文件里 \r 不能被当成行内字符,否则替换落空、变成重复的 Title 行。
+  if (/^Title:/m.test(text)) return text.replace(/^Title:[^\r\n]*/m, `Title: ${title}`);
+  return text.replace(/^(\[Script Info\][^\r\n]*)(\r?\n)/im, (_m, head: string, nl: string) => `${head}${nl}Title: ${title}${nl}`);
+};
+
 export const buildAssHeader = (config: AssStyleConfig, sourceLang: string, targetLang: string): string => {
   const fonts = resolveBilingualFonts(sourceLang, targetLang, config.fontName);
   return `[Script Info]
@@ -1197,6 +1212,12 @@ export const assembleSubtitleOutput = (input: {
 
     // filter 去掉 cue 聚合留下的 null 占位
     finalSubtitle = outputLines.filter((line): line is string => line !== null).join("\n");
+  }
+
+  // ASS 的 [Script Info] Title 写成目标语言的母语名(English / বাংলা / العربية),
+  // 纯字符串替换,不发任何请求,不影响翻译速度。
+  if (fileType === "ass" || shouldConvertToAssBilingual) {
+    finalSubtitle = setAssTitle(finalSubtitle, nativeLanguageName(exportLang));
   }
 
   // removeChars 已在调用方对【原始译文】逐行应用 —— 不再对装配后的
