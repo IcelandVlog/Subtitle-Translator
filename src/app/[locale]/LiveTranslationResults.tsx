@@ -110,11 +110,7 @@ const LiveTranslationResults = ({ store, processedCount }: LiveTranslationResult
         // 浏览器的 scroll anchoring 找不到稳定锚点,就会把窗口滚动位置弹到别处
         // 再弹回来,看起来像整个页面在跳。锁死高度后面板本身的尺寸从不变化,
         // 这类跳动就没有触发源了。
-        // 高度随视口放大(桌面上约 60% 屏高,封顶 760px),下边缘可拖动调整。
-        // 仍是固定值(只随窗口尺寸变),不随内容变化,上面的抖动问题不会回来。
-        height: "clamp(320px, 60vh, 760px)",
-        minHeight: 320,
-        resize: "vertical",
+        height: 320,
         overflowY: "auto",
       }}>
       {/* 不在这里报行数:lines 是被窗口截过的,显示出来是【渲染条数】而不是
