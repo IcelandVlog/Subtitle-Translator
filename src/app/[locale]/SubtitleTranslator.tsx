@@ -682,7 +682,7 @@ const SubtitleTranslator = () => {
                 clearResults();
                 handleFileUpload(file as File);
               }}
-              accept={uploadFileTypes.accept}
+              accept={`${uploadFileTypes.accept},.zip`}
               multiple={!singleFileMode}
               showUploadList
               beforeUpload={singleFileMode ? resetUpload : undefined}
