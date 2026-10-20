@@ -37,7 +37,6 @@ import ContextTranslationBlock from "@/app/components/ContextTranslationBlock";
 import TranslationProgressStrip from "@/app/components/TranslationProgressStrip";
 import LiveTranslationResults from "./LiveTranslationResults";
 import TranslationHistory from "@/app/components/TranslationHistory";
-import AccountPanel from "@/app/components/AccountPanel";
 import { saveTranslationOutput } from "@/app/lib/supabase/history";
 import { useTranslationContext } from "@/app/components/TranslationContext";
 import ResultCard from "@/app/components/ResultCard";
@@ -1068,8 +1067,6 @@ const SubtitleTranslator = () => {
         sourceLang={sourceLanguage}
         targetLang={targetLanguage}
       />
-
-      <AccountPanel />
     </Spin>
   );
 };
