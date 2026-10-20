@@ -1327,6 +1327,12 @@ const runTranslateLines = async (
     // 根因:旧版这个 for 循环从头到尾都是纯串行 await,完全没读 batchSize。
     const chunkConcurrency = positiveInt(config.batchSize, 1);
     const chunkLimit = pLimit(chunkConcurrency);
+    // 续跑:此前暂停时已译完并写入缓存的块,整块先计入进度(从暂停处开始),
+    // 不重新请求、不逐块节流。缓存未命中的块照常翻译。
+    const chunkHits = cache ? await cache.getMany(chunks.map((c) => generateCacheKey(c, cacheSuffix))) : [];
+    const chunkCached = chunks.map((_, i) => !!chunkHits[i]);
+    chunkLinesDone = chunkLineCounts.reduce((sum, n, i) => (chunkCached[i] ? sum + n : sum), 0);
+    if (chunkLinesDone > 0) ctx.onProgress?.(chunkLinesDone, totalChunkLines);
     const chunkTasks: Promise<void>[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
@@ -1445,7 +1451,7 @@ const runTranslateLines = async (
         }
       }
           translatedChunks[i] = processed;
-          chunkLinesDone += chunkLineCount;
+          if (!chunkCached[i]) chunkLinesDone += chunkLineCount;
           ctx.onProgress?.(chunkLinesDone, totalChunkLines);
           // pLimit 已经把并发夹在 chunkConcurrency 内;这里是【每个已完成任务】后
           // 的可选额外间隔(用户配的 delayTime),给严格限流的 provider 多一层
@@ -1453,7 +1459,7 @@ const runTranslateLines = async (
           // `i < chunks.length - 1` 跳过最后一块的延迟,并发下"最后一块"已经
           // 没有固定含义,干脆每块完成后都可能延迟一下,代价只是尾部多等一个
           // delayTime,可忽略。
-          if ((config.delayTime ?? 200) > 0 && !runController.signal.aborted) {
+          if ((config.delayTime ?? 200) > 0 && !chunkCached[i] && !runController.signal.aborted) {
             await abortableSleep(config.delayTime || 200, runController.signal);
           }
         }),

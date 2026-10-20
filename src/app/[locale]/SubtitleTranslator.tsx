@@ -115,6 +115,7 @@ const SubtitleTranslator = () => {
     isTranslating,
     setIsTranslating,
     resetProgress,
+    setProgressResume,
     liveLinesStore,
     clearLiveLines,
     recordLiveLine,
@@ -217,6 +218,12 @@ const SubtitleTranslator = () => {
   // 不在翻译一结束就自动下载。单文件单语言场景不入队,维持原有的
   // 「预览 + Export 按钮手动导出单个文件」路径不变。
   const zipQueueRef = useRef<{ name: string; content: string }[]>([]);
+  // 暂停位置(第几个文件 / 第几个语言)。Continue 从这里接着跑,之前译完的语言保留在 ZIP 队列里。
+  const resumeFromRef = useRef<{ file: number; langIndex: number; key: string; progress: { percent: number; current: number; total: number } } | null>(null);
+  // 本轮实际生效的续跑位置(由 handleTranslateClick 在开始时设定,结束时清空)。
+  const activeResumeRef = useRef<{ file: number; langIndex: number } | null>(null);
+  // 文件 + 语言组合的指纹:用户换了文件或语言后,旧的暂停位置不再适用。
+  const runInputKey = () => `${uploadMode}|${multipleFiles.map((f) => f.name).join("|")}|${targetLanguages.join(",")}|${sourceText.length}`;
   const [zipReady, setZipReady] = useState(false);
   const [autoStartPending, setAutoStartPending] = useState(false);
   // 队列长度单独镜像成 state:zipQueueRef 是给下载逻辑用的可变累积区,
@@ -358,14 +365,16 @@ const SubtitleTranslator = () => {
     const langCount = Math.max(targetLangs.length, 1);
     const totalSegments = Math.max(totalFiles ?? 1, 1) * langCount;
 
-    for (let langIdx = 0; langIdx < targetLangs.length; langIdx++) {
+    const resume = activeResumeRef.current;
+    const resumeHere = !!resume && resume.file === (fileIndex ?? 0) + 1;
+    for (let langIdx = resumeHere ? Math.max(0, resume!.langIndex - 1) : 0; langIdx < targetLangs.length; langIdx++) {
       const currentTargetLang = targetLangs[langIdx];
       // 小窗口里显示「第几个文件 / 第几个语言」
       setRunInfo({ file: (fileIndex ?? 0) + 1, fileTotal: totalFiles ?? 1, lang: currentTargetLang, langIndex: langIdx + 1, langTotal: targetLangs.length });
       const segmentIndex = (fileIndex ?? 0) * langCount + langIdx;
       // 取消刹车:translateBatch 的入口守卫本来也会把后续语言逐个抛掉(级联标记
       // → 下面 catch 静默 continue),在这里刹住只是不做那 N 次空转。
-      if (isCancelRequested()) break;
+      if (isCancelRequested() || resumeFromRef.current) break;
       // 每个语言(或文件)开始前清掉上一轮的实时行 —— 新一轮结果从空列表
       // 重新累积(多语言循环里每个 lang 的流是独立的)。
       clearLiveLines();
@@ -541,17 +550,21 @@ const SubtitleTranslator = () => {
     // 批量路径:整批文件开跑前清掉实时行(单文件路径由 runTranslation →
     // performTranslation 的 clearLiveLines 清)。
     clearLiveLines();
-    failedFilesRef.current = 0;
+    const resumingBatch = !!activeResumeRef.current;
+    if (!resumingBatch) failedFilesRef.current = 0;
     // Batch path doesn't go through the hook's runTranslation — reset ALL failure
     // state (not just langs) so counts don't accumulate across runs and the failure
     // warning re-fires on a fresh batch.
-    clearFailures();
+    if (!resumingBatch) clearFailures();
 
     try {
       const isValid = await validate();
       if (!isValid) return;
 
+      const resumeFile = activeResumeRef.current?.file ?? 0;
       for (let i = 0; i < multipleFiles.length; i++) {
+        // 续跑:暂停前已经全部译完的文件(结果在 ZIP 队列里)直接跳过。
+        if (i + 1 < resumeFile) continue;
         const currentFile = multipleFiles[i];
         await new Promise<void>((resolve) => {
           readFile(
@@ -574,7 +587,7 @@ const SubtitleTranslator = () => {
         // 中途导航离开:后续文件只会逐个快速级联失败,汇总 toast 也会弹在
         // 用户切去的页面上 —— 直接收工。取消同理:requestCancel 已弹过提示,
         // 「已导出 (n/m)」的汇总只会把一次主动喊停说成一次半失败。
-        if (isDisposed() || isCancelRequested()) return;
+        if (isDisposed() || isCancelRequested() || resumeFromRef.current) return;
       }
 
       // 非取消结束时把进度钉到 100%,与 JSONTranslator 一致。
@@ -588,7 +601,7 @@ const SubtitleTranslator = () => {
       // 每个文件都在发请求前就失败时(格式不支持 / 解码失败),makeUpdateProgress
       // 从未跑过、percent 恒为 0,无条件钉会显示 100% 的琥珀色「INCOMPLETE」——
       // 声称有行保留了原文,而失败面板是空的。进度动过才钉。
-      if (!isCancelRequested()) setProgressPercent((p) => (p > 0 ? 100 : p));
+      if (!isCancelRequested() && !resumeFromRef.current) setProgressPercent((p) => (p > 0 ? 100 : p));
       // 部分/全失败时不报"已导出"(per-file error toast 已经告知细节),只在有成功时显示汇总。
       // hadRunFailures() 覆盖行级软失败:provider 整体故障时文件"导出成功"但内容
       // 是原文副本 —— 绿色成功 toast 会跟失败面板自相矛盾,降级为 warning。
@@ -607,13 +620,25 @@ const SubtitleTranslator = () => {
   };
 
   const handleTranslateClick = async () => {
-    // 新一轮开始:清掉上一轮攒下的 ZIP 队列,别让旧文件混进新的
-    // 下载包里(比如换了源文件后忘了下载上一轮的 ZIP)。
-    resetZipQueue();
-    if (uploadMode === "single") {
-      await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
-    } else {
-      await handleMultipleTranslate();
+    // 续跑:暂停过且文件/语言没变 → 保留 ZIP 队列,从暂停位置接着跑;否则是全新一轮。
+    const pending = resumeFromRef.current;
+    resumeFromRef.current = null;
+    const resume = pending && pending.key === runInputKey() ? pending : null;
+    activeResumeRef.current = resume ? { file: resume.file, langIndex: resume.langIndex } : null;
+    // 进度条从暂停时的数字接着走(不是 0/1 归零)。
+    setProgressResume(resume ? resume.progress : null);
+    if (!resume) {
+      resetZipQueue();
+      setRunInfo({ file: 1, fileTotal: 1, lang: "", langIndex: 1, langTotal: 1 });
+    }
+    try {
+      if (uploadMode === "single") {
+        await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
+      } else {
+        await handleMultipleTranslate();
+      }
+    } finally {
+      activeResumeRef.current = null;
     }
     // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
     // 按钮 —— 不自动下载,交给用户手动点。
@@ -655,6 +680,12 @@ const SubtitleTranslator = () => {
 
   // 暂停:先停止(已译行已在行缓存里),再把原文件 + 当前设置存成「已暂停」任务,历史里可「继续」。
   const handlePause = async () => {
+    resumeFromRef.current = {
+      file: runInfo.file,
+      langIndex: runInfo.langIndex,
+      key: runInputKey(),
+      progress: { percent: progressPercent, current: progressInfo.current, total: progressInfo.total },
+    };
     pauseTranslation();
     try {
       const files: SavedFile[] =
@@ -668,8 +699,15 @@ const SubtitleTranslator = () => {
     }
   };
 
+  // 取消:清掉暂停位置,之后的 Translate 是全新一轮。
+  const handleCancel = () => {
+    resumeFromRef.current = null;
+    requestCancel();
+  };
+
   // 从历史「继续」:把暂停时的原文件放回上传区;点 Translate 后,已译行从缓存直接复用。
   const handleContinueJob = (files: SavedFile[]) => {
+    resumeFromRef.current = null;
     resetZipQueue();
     clearResults();
     setAutoStartPending(true);
@@ -828,7 +866,7 @@ const SubtitleTranslator = () => {
             <TranslationProgressStrip
               isTranslating={isTranslating}
               percent={progressPercent}
-              onCancel={requestCancel}
+              onCancel={handleCancel}
               onPause={useCache ? handlePause : undefined}
               onPopOut={handlePopOut}
               onResume={useCache ? handleTranslateClick : undefined}
@@ -1136,7 +1174,7 @@ const SubtitleTranslator = () => {
           info={runInfoText}
           onPause={handlePause}
           onResume={useCache ? handleTranslateClick : undefined}
-          onCancel={requestCancel}
+          onCancel={handleCancel}
           onClose={closeMini}
         />
       )}

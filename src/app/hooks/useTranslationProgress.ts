@@ -114,9 +114,18 @@ export const useTranslationProgress = () => {
       }
     };
 
+  // 续跑:暂停时的进度快照。下一次 resetProgress 会把进度恢复到这里,而不是归零 ——
+  // 否则 validate 探测期间会一直显示 0/1,直到缓存里的行陆续刷出来才跳到暂停处。
+  const progressResumeRef = useRef<{ percent: number; current: number; total: number } | null>(null);
+  const setProgressResume = (snapshot: { percent: number; current: number; total: number } | null) => {
+    progressResumeRef.current = snapshot;
+  };
+
   const resetProgress = () => {
-    setProgressPercent(0);
-    setProgressInfo({ current: 0, total: 0 });
+    const resumeFrom = progressResumeRef.current;
+    progressResumeRef.current = null;
+    setProgressPercent(resumeFrom?.percent ?? 0);
+    setProgressInfo(resumeFrom ? { current: resumeFrom.current, total: resumeFrom.total } : { current: 0, total: 0 });
     // 计时起点钉在这里(runTranslation 在发第一个请求前就调用它),比等第一次
     // progressPercent 变化再起表更早、更准 —— 请求排队/探测阶段的耗时也该算进
     // 「已经花了多久」里,否则 ETA 会系统性偏乐观。
@@ -252,6 +261,7 @@ export const useTranslationProgress = () => {
     disposedRef,
     makeUpdateProgress,
     resetProgress,
+    setProgressResume,
     etaSeconds,
     liveLinesStore,
     clearLiveLines,
