@@ -360,6 +360,8 @@ const SubtitleTranslator = () => {
 
     for (let langIdx = 0; langIdx < targetLangs.length; langIdx++) {
       const currentTargetLang = targetLangs[langIdx];
+      // 小窗口里显示「第几个文件 / 第几个语言」
+      setRunInfo({ file: (fileIndex ?? 0) + 1, fileTotal: totalFiles ?? 1, lang: currentTargetLang, langIndex: langIdx + 1, langTotal: targetLangs.length });
       const segmentIndex = (fileIndex ?? 0) * langCount + langIdx;
       // 取消刹车:translateBatch 的入口守卫本来也会把后续语言逐个抛掉(级联标记
       // → 下面 catch 静默 continue),在这里刹住只是不做那 N 次空转。
@@ -621,6 +623,14 @@ const SubtitleTranslator = () => {
 
   // 小窗口:显示进度,不影响翻译。关闭按钮或翻译结束后关闭。
   const [miniWin, setMiniWin] = useState<Window | null>(null);
+  const [runInfo, setRunInfo] = useState({ file: 1, fileTotal: 1, lang: "", langIndex: 1, langTotal: 1 });
+  const runInfoText = [
+    runInfo.fileTotal > 1 ? `File ${runInfo.file}/${runInfo.fileTotal}` : null,
+    runInfo.langTotal > 1 ? `Language ${runInfo.langIndex}/${runInfo.langTotal}` : null,
+    runInfo.lang || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const closeMini = useCallback(() => {
     setMiniWin((w) => {
       try {
@@ -1123,6 +1133,7 @@ const SubtitleTranslator = () => {
           current={progressInfo.current}
           total={progressInfo.total}
           running={isTranslating}
+          info={runInfoText}
           onPause={handlePause}
           onResume={useCache ? handleTranslateClick : undefined}
           onCancel={requestCancel}

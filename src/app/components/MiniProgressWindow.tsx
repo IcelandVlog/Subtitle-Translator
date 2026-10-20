@@ -59,13 +59,15 @@ type Props = {
   current: number;
   total: number;
   running: boolean;
+  /** e.g. "File 3/16 · Language 2/5 · fil-tl" */
+  info?: string;
   onPause?: () => void;
   onResume?: () => void;
   onCancel?: () => void;
   onClose: () => void;
 };
 
-const MiniProgressWindow = ({ win, percent, current, total, running, onPause, onResume, onCancel, onClose }: Props) => {
+const MiniProgressWindow = ({ win, percent, current, total, running, info, onPause, onResume, onCancel, onClose }: Props) => {
   // Closing the window (by the user, or by us) clears the state.
   useEffect(() => {
     const handle = () => onClose();
@@ -110,7 +112,10 @@ const MiniProgressWindow = ({ win, percent, current, total, running, onPause, on
       <div style={{ height: 8, background: "#333", borderRadius: 4, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: "#52c41a", transition: "width 0.3s" }} />
       </div>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{pct}%</div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, opacity: 0.85 }}>
+        <span>{pct}%</span>
+        {info && <span style={{ textAlign: "right" }}>{info}</span>}
+      </div>
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
         {running && onPause && (
           <button type="button" onClick={onPause} style={buttonStyle}>

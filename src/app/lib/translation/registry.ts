@@ -115,7 +115,9 @@ export const PROVIDERS = {
     //   - 含 /translate_a/ → legacy 表单协议 (被 Google 反滥用墙拦截的旧端点，
     //     但墙按 IP 信誉放行，部分地区/IP 仍可用，保留作备选)
     //   - 其余 (默认 translate-pa，或用户自建同协议镜像)→ translateHtml 数组协议
-    defaults: { url: "https://translate-pa.googleapis.com/v1/translateHtml", chunkSize: 5000, delayTime: 0, batchSize: 100 },
+    // chunkSize 1000 + batchSize 10: chunks finish one after another, so each finished chunk is
+    // cached and a paused run resumes close to where it stopped (not from the start).
+    defaults: { url: "https://translate-pa.googleapis.com/v1/translateHtml", chunkSize: 1000, delayTime: 0, batchSize: 10 },
     endpoints: [
       { label: "translate-pa (Default)", url: "https://translate-pa.googleapis.com/v1/translateHtml" },
       { label: "Legacy gtx", url: "https://translate.googleapis.com/translate_a/single" },
