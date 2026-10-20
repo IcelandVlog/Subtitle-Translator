@@ -99,7 +99,7 @@ const TranslationHistory = ({ onContinue }: Props) => {
     try {
       const files = await loadJobFiles(item.id);
       onContinue(files);
-      message.success("Files loaded. Click Translate to continue; finished lines are reused from cache.");
+      message.success("Continuing. Finished lines are reused from cache.");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Could not load the paused job");
     }

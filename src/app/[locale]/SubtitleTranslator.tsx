@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Flex, Card, Button, Typography, Input, Upload, Form, Space, App, Tooltip, Segmented, Spin, Row, Col, Divider, Collapse, Alert, theme } from "antd";
 import { SettingOutlined, CopyOutlined, InboxOutlined, FileTextOutlined, ClearOutlined, FormatPainterOutlined, GlobalOutlined, ImportOutlined, SaveOutlined, ControlOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
@@ -217,6 +217,7 @@ const SubtitleTranslator = () => {
   // 「预览 + Export 按钮手动导出单个文件」路径不变。
   const zipQueueRef = useRef<{ name: string; content: string }[]>([]);
   const [zipReady, setZipReady] = useState(false);
+  const [autoStartPending, setAutoStartPending] = useState(false);
   // 队列长度单独镜像成 state:zipQueueRef 是给下载逻辑用的可变累积区,
   // 不能在 render 里直接读 ref.current(React 会警告/报错);按钮上的计数
   // 徽标走这份 state 副本，随每次入队同步更新。
@@ -636,8 +637,19 @@ const SubtitleTranslator = () => {
   const handleContinueJob = (files: SavedFile[]) => {
     resetZipQueue();
     clearResults();
+    setAutoStartPending(true);
     loadFiles(files.map((f) => new File([f.content], f.name, { type: "text/plain" })));
   };
+
+  // Continue: start translating as soon as the loaded files are ready (single file: its text
+  // has been read; batch: the file list is set). Finished lines come from the cache.
+  useEffect(() => {
+    if (!autoStartPending || isTranslating) return;
+    const ready = uploadMode === "multiple" ? multipleFiles.length > 1 : multipleFiles.length === 1 && sourceText.trim().length > 0;
+    if (!ready) return;
+    setAutoStartPending(false);
+    void handleTranslateClick();
+  }, [autoStartPending, isTranslating, uploadMode, multipleFiles, sourceText]);
 
   const handleExportFile = () => {
     const uploadFileName = multipleFiles[0]?.name || "subtitle";
