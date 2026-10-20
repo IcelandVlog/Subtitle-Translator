@@ -121,3 +121,24 @@ export const signOutAccount = async (): Promise<void> => {
   // Start a fresh anonymous browser session so saving keeps working without login.
   await ensureSession();
 };
+
+/**
+ * Listen for login / logout / token refresh. Creating the client here also makes it
+ * read the `#access_token=…` from a magic-link redirect right away. After that the
+ * token is removed from the address bar. Returns an unsubscribe function.
+ */
+export const onUserChange = (cb: () => void): (() => void) => {
+  const sb = getSupabase();
+  if (!sb) return () => {};
+  const { data } = sb.auth.onAuthStateChange(() => {
+    if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
+      try {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch {
+        // ignore: the hash is only cosmetic
+      }
+    }
+    cb();
+  });
+  return () => data.subscription.unsubscribe();
+};

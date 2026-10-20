@@ -12,6 +12,7 @@ import {
   getAccountState,
   getTranslationOutputContent,
   listTranslationOutputs,
+  onUserChange,
   sendEmailLogin,
   signOutAccount,
 } from "@/app/lib/supabase/history";
@@ -50,8 +51,13 @@ const TranslationHistory = () => {
 
   useEffect(() => {
     refresh();
+    // Magic-link login lands here with the token in the URL; this fires once it is processed.
+    const unsubscribe = onUserChange(() => refresh());
     window.addEventListener(HISTORY_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(HISTORY_UPDATED_EVENT, refresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener(HISTORY_UPDATED_EVENT, refresh);
+    };
   }, [refresh]);
 
   const handleSend = async () => {
