@@ -12,9 +12,10 @@ interface ExportFilenameConfig {
    * @param originalFileName - Original filename (can include extension)
    * @param langCode - Target language code
    * @param defaultExt - Force extension (e.g., 'ass' for bilingual subtitles), undefined to keep original
-   * @param disambiguateLang - true in multi-language mode: inject `_{lang}` before the
-   *   extension when the pattern doesn't already vary by {lang}, so N target languages
-   *   don't collide into one filename. Single-language exports stay clean ({name}.{ext}).
+   * @param disambiguateLang - inject `.{lang}` before the extension when the pattern
+   *   doesn't already contain {lang} (e.g. `movie.en.srt`). Callers pass true for every
+   *   export so the language code is always present, and N target languages never
+   *   collide into one filename.
    */
   generateFileName: (originalFileName: string, langCode: string, defaultExt?: string, disambiguateLang?: boolean) => string;
 }
@@ -86,11 +87,10 @@ export const useExportFilename = (toolKey: string = "default"): ExportFilenameCo
       result = `${result}.${ext}`;
     }
 
-    // Multi-language collision guard: when several target languages are exported
-    // from ONE source, their names would otherwise be identical (browser appends
-    // " (1)"/" (2)"). Inject .{lang} before the extension — but ONLY when the
-    // pattern doesn't already carry {lang} (else double-tag), so a user who wrote
-    // their own {lang} pattern, and every single-language export, are untouched.
+    // Language code injection: put .{lang} before the extension so the output is
+    // e.g. `movie.en.srt`. Applied ONLY when the pattern doesn't already carry
+    // {lang} (else double-tag), so a user who wrote their own {lang} pattern is
+    // untouched. Also prevents collisions when several languages share one source.
     if (disambiguateLang && !/\{lang\}/i.test(pattern)) {
       const dot = result.lastIndexOf(".");
       result = dot > 0 ? `${result.slice(0, dot)}.${langCode}${result.slice(dot)}` : `${result}.${langCode}`;

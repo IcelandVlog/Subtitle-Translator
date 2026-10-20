@@ -414,10 +414,10 @@ const SubtitleTranslator = () => {
           // 原生 ASS 重新排版产出 v4.00+,即使源是 .ssa 也回写 .ass(仅双语版被重排)。
           const bilingualExt = fileType === "ass" && assNativeRebuild ? "ass" : getOutputFileExtension(fileType, true, bilingualFormat, sourceExt);
 
-          const translatedOnlyFileName = generateFileName(fileName, langLabel, translatedOnlyExt, multiLanguageMode);
+          const translatedOnlyFileName = generateFileName(fileName, langLabel, translatedOnlyExt, true);
           // bilingual 文件在扩展名前插 _bilingual 后缀,避免跟 translatedOnly 文件同名冲突
           // (ASS/LRC 源、SRT+format=srt 三种场景下两个 ext 相同,不区分会被浏览器覆盖下载)
-          const bilingualFileName = appendBilingualSuffix(generateFileName(fileName, langLabel, bilingualExt, multiLanguageMode));
+          const bilingualFileName = appendBilingualSuffix(generateFileName(fileName, langLabel, bilingualExt, true));
 
           if (isBatchRun) {
             queueZipFile(translatedOnlySubtitle, translatedOnlyFileName);
@@ -447,7 +447,7 @@ const SubtitleTranslator = () => {
           const finalSubtitle = generateSubtitle(needsBilingual, translatedLines, currentTargetLang, softFilled);
           // 原生 ASS 重新排版(双语)产出 v4.00+ → .ass,即使源是 .ssa。
           const fileExt = fileType === "ass" && needsBilingual && assNativeRebuild ? "ass" : getOutputFileExtension(fileType, needsBilingual, bilingualFormat, sourceExt);
-          const downloadFileName = generateFileName(fileName, langLabel, fileExt, multiLanguageMode);
+          const downloadFileName = generateFileName(fileName, langLabel, fileExt, true);
 
           // Always export in multi-language/multi-file mode — queued into the
           // ZIP instead of downloading immediately.
@@ -603,7 +603,7 @@ const SubtitleTranslator = () => {
     const langLabel = translatedTextLang ?? targetLanguage;
 
     // Use custom filename if set, otherwise use default pattern
-    let fileName = generateFileName(uploadFileName, langLabel, fileExt, multiLanguageMode);
+    let fileName = generateFileName(uploadFileName, langLabel, fileExt, true);
     // both 模式下的 bilingual 预览要加 _bilingual 后缀,跟翻译时下载的 bilingual 文件名一致
     if (needsBilingualSuffix) {
       fileName = appendBilingualSuffix(fileName);
