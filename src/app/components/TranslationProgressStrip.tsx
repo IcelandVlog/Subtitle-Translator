@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { Button, ConfigProvider, Progress, Tooltip, Typography, theme } from "antd";
-import { CloseOutlined, DownloadOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, CloseOutlined, DownloadOutlined, PauseOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 
 const { Text } = Typography;
@@ -14,6 +14,10 @@ interface TranslationProgressStripProps {
   percent: number;
   /** Cancel the in-flight run (requestCancel from the hook) */
   onCancel?: () => void;
+  /** 暂停:停止本轮但保留行缓存(需要 resumable) */
+  onPause?: () => void;
+  /** 继续:停在 STOPPED 态时从缓存处接着跑 */
+  onResume?: () => void;
   /** Dismiss the held DONE / STOPPED state (resets progress so the strip closes) */
   onDismiss?: () => void;
   /**
@@ -97,7 +101,7 @@ const formatEta = (totalSeconds: number): string => {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, singleFileExport = false, etaSeconds = null }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onPause, onResume, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, singleFileExport = false, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -210,15 +214,29 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
               </Button>
             </Tooltip>
           )}
-          {isTranslating
-            ? onCancel && (
-                <ConfigProvider button={{ autoInsertSpace: false }}>
-                  <Button size="small" onClick={onCancel} style={{ flexShrink: 0 }}>
-                    {t("cancel")}
-                  </Button>
-                </ConfigProvider>
-              )
-            : onDismiss && <Button size="small" type="text" icon={<CloseOutlined />} onClick={onDismiss} aria-label={t("dismiss")} style={{ flexShrink: 0 }} />}
+          {isTranslating ? (
+            <ConfigProvider button={{ autoInsertSpace: false }}>
+              {onPause && (
+                <Button size="small" icon={<PauseOutlined />} onClick={onPause} style={{ flexShrink: 0 }}>
+                  {t("pause")}
+                </Button>
+              )}
+              {onCancel && (
+                <Button size="small" onClick={onCancel} style={{ flexShrink: 0 }}>
+                  {t("cancel")}
+                </Button>
+              )}
+            </ConfigProvider>
+          ) : (
+            <>
+              {stopped && onResume && (
+                <Button size="small" type="primary" icon={<CaretRightOutlined />} onClick={onResume} style={{ flexShrink: 0 }}>
+                  {t("resume")}
+                </Button>
+              )}
+              {onDismiss && <Button size="small" type="text" icon={<CloseOutlined />} onClick={onDismiss} aria-label={t("dismiss")} style={{ flexShrink: 0 }} />}
+            </>
+          )}
         </span>
       </div>
     </div>

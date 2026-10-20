@@ -135,6 +135,8 @@
     "search": "搜索",
     "noMatches": "没有匹配的工具",
     "clearAll": "清空",
+    "pause": "暂停",
+    "resume": "继续",
     "cancel": "取消",
     "apply": "应用",
     "batchEditMultiLangTooltip": "快速配置多语言翻译目标",

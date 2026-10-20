@@ -142,6 +142,8 @@
     "search": "Search",
     "noMatches": "No matching tools",
     "clearAll": "Clear All",
+    "pause": "Pause",
+    "resume": "Resume",
     "cancel": "Cancel",
     "apply": "Apply",
     "batchEditMultiLangTooltip": "Quickly configure multi-language translation targets",

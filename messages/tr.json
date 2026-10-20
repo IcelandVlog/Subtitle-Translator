@@ -129,6 +129,8 @@
     "search": "Ara",
     "noMatches": "Eşleşen araç yok",
     "clearAll": "Tümünü temizle",
+    "pause": "Duraklat",
+    "resume": "Devam et",
     "cancel": "İptal",
     "apply": "Uygula",
     "batchEditMultiLangTooltip": "Çok dilli çeviri hedeflerini hızla yapılandır",

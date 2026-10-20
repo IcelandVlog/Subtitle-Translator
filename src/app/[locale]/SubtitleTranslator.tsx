@@ -122,6 +122,7 @@ const SubtitleTranslator = () => {
     handleSwapLanguages,
     validate,
     requestCancel,
+    pauseTranslation,
     isCancelRequested,
     retryCount,
     setRetryCount,
@@ -595,6 +596,20 @@ const SubtitleTranslator = () => {
     }
   };
 
+  const handleTranslateClick = async () => {
+    // 新一轮开始:清掉上一轮攒下的 ZIP 队列,别让旧文件混进新的
+    // 下载包里(比如换了源文件后忘了下载上一轮的 ZIP)。
+    resetZipQueue();
+    if (uploadMode === "single") {
+      await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
+    } else {
+      await handleMultipleTranslate();
+    }
+    // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
+    // 按钮 —— 不自动下载,交给用户手动点。
+    if (zipQueueRef.current.length > 0) setZipReady(true);
+  };
+
   const handleExportFile = () => {
     const uploadFileName = multipleFiles[0]?.name || "subtitle";
     // ResultCard 只在 translatedText 非空时渲染,而 translatedText 写入必伴随 ext/lang
@@ -721,19 +736,7 @@ const SubtitleTranslator = () => {
                 size="large"
                 icon={<GlobalOutlined spin={isTranslating} />}
                 className="flex-1"
-                onClick={async () => {
-                  // 新一轮开始:清掉上一轮攒下的 ZIP 队列,别让旧文件混进新的
-                  // 下载包里(比如换了源文件后忘了下载上一轮的 ZIP)。
-                  resetZipQueue();
-                  if (uploadMode === "single") {
-                    await runTranslation(performTranslation, sourceText, contextAware ? "subtitle" : undefined);
-                  } else {
-                    await handleMultipleTranslate();
-                  }
-                  // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
-                  // 按钮 —— 不自动下载,交给用户手动点。
-                  if (zipQueueRef.current.length > 0) setZipReady(true);
-                }}
+                onClick={handleTranslateClick}
                 disabled={isTranslating}
                 loading={isTranslating}>
                 {multiLanguageMode ? `${t("translate")} (${targetLanguages.length})` : t("translate")}
@@ -750,6 +753,8 @@ const SubtitleTranslator = () => {
               isTranslating={isTranslating}
               percent={progressPercent}
               onCancel={requestCancel}
+              onPause={useCache ? pauseTranslation : undefined}
+              onResume={useCache ? handleTranslateClick : undefined}
               resumable={useCache}
               onDismiss={resetProgress}
               multiLanguageMode={multiLanguageMode}

@@ -129,6 +129,8 @@
     "search": "Tìm kiếm",
     "noMatches": "Không có công cụ phù hợp",
     "clearAll": "Xóa tất cả",
+    "pause": "Tạm dừng",
+    "resume": "Tiếp tục",
     "cancel": "Hủy",
     "apply": "Áp dụng",
     "batchEditMultiLangTooltip": "Cấu hình nhanh các ngôn ngữ đích",
