@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Button, Card, Empty, Input, List, Space, Tag, Typography, message } from "antd";
+import { App, Button, Card, Empty, Input, List, Space, Tag, Typography } from "antd";
 import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
 import {
   HISTORY_UPDATED_EVENT,
@@ -32,6 +32,7 @@ type Props = {
  * and paused jobs that can be continued (7 days).
  */
 const TranslationHistory = ({ onContinue }: Props) => {
+  const { modal, message } = App.useApp();
   const [account, setAccount] = useState<AccountState>({ signedIn: false, email: null, isAnonymous: true });
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,13 +105,27 @@ const TranslationHistory = ({ onContinue }: Props) => {
     }
   };
 
-  const handleDelete = async (item: HistoryItem) => {
+  const performDelete = async (item: HistoryItem) => {
     try {
       await deleteHistoryItem(item);
       setItems((prev) => prev.filter((i) => !(i.id === item.id && i.type === item.type)));
+      message.success("Deleted");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Delete failed");
     }
+  };
+
+  // Ask first, in a centered dialog, so a click never removes a saved file by accident.
+  const handleDelete = (item: HistoryItem) => {
+    modal.confirm({
+      title: "Delete this item?",
+      content: `"${item.title}" will be removed from your history. This cannot be undone.`,
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      centered: true,
+      onOk: () => performDelete(item),
+    });
   };
 
   return (
