@@ -37,7 +37,7 @@ import ContextTranslationBlock from "@/app/components/ContextTranslationBlock";
 import TranslationProgressStrip from "@/app/components/TranslationProgressStrip";
 import LiveTranslationResults from "./LiveTranslationResults";
 import TranslationHistory from "@/app/components/TranslationHistory";
-import { saveTranslationOutput } from "@/app/lib/supabase/history";
+import { saveTranslationOutput, saveTranslationBatch, saveTranslationJob, type SavedFile } from "@/app/lib/supabase/history";
 import { useTranslationContext } from "@/app/components/TranslationContext";
 import ResultCard from "@/app/components/ResultCard";
 import BilingualReviewPanel from "./BilingualReviewPanel";
@@ -77,6 +77,7 @@ const SubtitleTranslator = () => {
     handleUploadRemove,
     handleUploadChange,
     resetUpload,
+    loadFiles,
   } = useFileUpload();
   // ... useTranslationContext destructuring ...
   const {
@@ -221,8 +222,6 @@ const SubtitleTranslator = () => {
   // 徽标走这份 state 副本，随每次入队同步更新。
   const [zipFileCount, setZipFileCount] = useState(0);
   const queueZipFile = (content: string, fileName: string) => {
-    // 历史记录:成品同时存到 Supabase(7 天)。不 await,不阻塞翻译循环。
-    void saveTranslationOutput(fileName, "", content);
     zipQueueRef.current.push({ name: fileName, content });
     setZipFileCount(zipQueueRef.current.length);
   };
@@ -615,6 +614,29 @@ const SubtitleTranslator = () => {
     // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
     // 按钮 —— 不自动下载,交给用户手动点。
     if (zipQueueRef.current.length > 0) setZipReady(true);
+    if (zipQueueRef.current.length > 0) void saveTranslationBatch(zipQueueRef.current.map(({ name, content }) => ({ name, content })));
+  };
+
+  // 暂停:先停止(已译行已在行缓存里),再把原文件 + 当前设置存成「已暂停」任务,历史里可「继续」。
+  const handlePause = async () => {
+    pauseTranslation();
+    try {
+      const files: SavedFile[] =
+        uploadMode === "single" || multipleFiles.length <= 1
+          ? [{ name: multipleFiles[0]?.name ?? "subtitle.srt", content: sourceText }]
+          : await Promise.all(multipleFiles.map(async (f) => ({ name: f.name, content: await f.text() })));
+      const title = files.length > 1 ? `${files[0].name} (+${files.length - 1} more)` : files[0]?.name ?? "subtitle";
+      if (files[0]?.content) await saveTranslationJob(title, files);
+    } catch (error) {
+      console.warn("Could not save paused job:", error);
+    }
+  };
+
+  // 从历史「继续」:把暂停时的原文件放回上传区;点 Translate 后,已译行从缓存直接复用。
+  const handleContinueJob = (files: SavedFile[]) => {
+    resetZipQueue();
+    clearResults();
+    loadFiles(files.map((f) => new File([f.content], f.name, { type: "text/plain" })));
   };
 
   const handleExportFile = () => {
@@ -760,7 +782,7 @@ const SubtitleTranslator = () => {
               isTranslating={isTranslating}
               percent={progressPercent}
               onCancel={requestCancel}
-              onPause={useCache ? pauseTranslation : undefined}
+              onPause={useCache ? handlePause : undefined}
               onResume={useCache ? handleTranslateClick : undefined}
               resumable={useCache}
               onDismiss={resetProgress}
@@ -999,7 +1021,7 @@ const SubtitleTranslator = () => {
       />
 
       {/* Results Section */}
-      <TranslationHistory />
+      <TranslationHistory onContinue={handleContinueJob} />
 
       {uploadMode === "single" && (translatedText || extractedText) && (
         <div className="mt-6">

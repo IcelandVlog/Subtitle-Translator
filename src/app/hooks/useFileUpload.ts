@@ -175,6 +175,33 @@ const useFileUpload = () => {
     return false;
   };
 
+  // 把一组文件(例如「继续」暂停任务时取回的原文件)装进上传区,与拖拽上传等价。
+  const loadFiles = (files: File[]) => {
+    loadSeq.current++;
+    if (files.length === 0) {
+      resetUpload();
+      return;
+    }
+    setFileList(
+      files.map((f, i) => ({
+        uid: `loaded-${Date.now()}-${i}`,
+        name: f.name,
+        status: "done",
+        size: f.size,
+        originFileObj: f as UploadFile["originFileObj"],
+      })),
+    );
+    multipleFilesRef.current = files;
+    setMultipleFiles(files);
+    if (files.length > 1) {
+      setSourceText("");
+      setUploadMode("multiple");
+    } else {
+      setUploadMode("single");
+      readFile(files[0], latestSourceWriter());
+    }
+  };
+
   const handleUploadRemove: UploadProps["onRemove"] = (file: UploadFile) => {
     const updatedFileList = fileList.filter((f) => f.uid !== file.uid);
     setFileList(updatedFileList);
@@ -205,6 +232,7 @@ const useFileUpload = () => {
     handleFileUpload,
     handleUploadRemove,
     handleUploadChange,
+    loadFiles,
     resetUpload,
   };
 };

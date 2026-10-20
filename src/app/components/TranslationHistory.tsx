@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Button, Card, Empty, Input, List, Space, Typography, message } from "antd";
-import { DeleteOutlined, DownloadOutlined, HistoryOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
-import { downloadFile } from "@/app/utils";
+import { Button, Card, Empty, Input, List, Space, Tag, Typography, message } from "antd";
+import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
 import {
   HISTORY_UPDATED_EVENT,
   type AccountState,
   type HistoryItem,
-  deleteTranslationOutput,
+  type SavedFile,
+  deleteHistoryItem,
+  downloadHistoryItem,
   getAccountState,
-  getTranslationOutputContent,
-  listTranslationOutputs,
+  listHistory,
+  loadJobFiles,
   onUserChange,
   sendEmailLogin,
   signOutAccount,
@@ -21,11 +22,16 @@ const { Text } = Typography;
 
 const formatDate = (iso: string) => new Date(iso).toLocaleString();
 
+type Props = {
+  /** Continue a paused job: receives its original files. */
+  onContinue?: (files: SavedFile[]) => void;
+};
+
 /**
- * Translation history box. Signed out: email login form. Signed in: the saved list (7 days).
- * Outputs are saved even without login; they show up here after signing in.
+ * History box. Signed out: email login form. Signed in: finished files, batch zips,
+ * and paused jobs that can be continued (7 days).
  */
-const TranslationHistory = () => {
+const TranslationHistory = ({ onContinue }: Props) => {
   const [account, setAccount] = useState<AccountState>({ signedIn: false, email: null, isAnonymous: true });
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +47,7 @@ const TranslationHistory = () => {
     }
     setLoading(true);
     try {
-      setItems(await listTranslationOutputs());
+      setItems(await listHistory());
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Could not load history");
     } finally {
@@ -51,7 +57,6 @@ const TranslationHistory = () => {
 
   useEffect(() => {
     refresh();
-    // Magic-link login lands here with the token in the URL; this fires once it is processed.
     const unsubscribe = onUserChange(() => refresh());
     window.addEventListener(HISTORY_UPDATED_EVENT, refresh);
     return () => {
@@ -82,17 +87,27 @@ const TranslationHistory = () => {
 
   const handleDownload = async (item: HistoryItem) => {
     try {
-      const content = await getTranslationOutputContent(item.id);
-      await downloadFile(content, item.file_name);
+      await downloadHistoryItem(item);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Download failed");
     }
   };
 
+  const handleContinue = async (item: HistoryItem) => {
+    if (!onContinue) return;
+    try {
+      const files = await loadJobFiles(item.id);
+      onContinue(files);
+      message.success("Files loaded. Click Translate to continue; finished lines are reused from cache.");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Could not load the paused job");
+    }
+  };
+
   const handleDelete = async (item: HistoryItem) => {
     try {
-      await deleteTranslationOutput(item.id);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      await deleteHistoryItem(item);
+      setItems((prev) => prev.filter((i) => !(i.id === item.id && i.type === item.type)));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Delete failed");
     }
@@ -133,20 +148,35 @@ const TranslationHistory = () => {
             loading={loading}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Text type="secondary">No saved translations yet</Text>} /> }}
             dataSource={items}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  <Button key="dl" size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(item)}>
-                    Download
-                  </Button>,
-                  <Button key="del" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(item)} />,
-                ]}>
-                <List.Item.Meta
-                  title={item.file_name}
-                  description={`${item.target_lang ? item.target_lang + " · " : ""}${formatDate(item.created_at)} · expires ${formatDate(item.expires_at)}`}
-                />
-              </List.Item>
-            )}
+            renderItem={(item) => {
+              const isJob = item.type === "job";
+              const actions = isJob
+                ? [
+                    <Button key="cont" type="primary" size="small" icon={<CaretRightOutlined />} onClick={() => handleContinue(item)}>
+                      Continue
+                    </Button>,
+                    <Button key="del" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(item)} />,
+                  ]
+                : [
+                    <Button key="dl" size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(item)}>
+                      {item.type === "zip" ? `Download ZIP (${item.file_count})` : "Download"}
+                    </Button>,
+                    <Button key="del" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(item)} />,
+                  ];
+              return (
+                <List.Item actions={actions}>
+                  <List.Item.Meta
+                    title={
+                      <Space size={6}>
+                        {isJob ? <Tag color="orange">Paused</Tag> : item.type === "zip" ? <Tag color="blue">ZIP</Tag> : null}
+                        {item.title}
+                      </Space>
+                    }
+                    description={`${item.target_lang ? item.target_lang + " · " : ""}${isJob ? `${item.file_count} file(s) · ` : ""}${formatDate(item.created_at)} · expires ${formatDate(item.expires_at)}`}
+                  />
+                </List.Item>
+              );
+            }}
           />
         </>
       )}
