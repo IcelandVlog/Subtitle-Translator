@@ -79,3 +79,45 @@ export const deleteTranslationOutput = async (id: string): Promise<void> => {
   const { error } = await sb.from("translation_outputs").delete().eq("id", id);
   if (error) throw error;
 };
+
+export type AccountState = { signedIn: boolean; email: string | null; isAnonymous: boolean };
+
+/** Current account: anonymous (no login), signed in with email, or none yet. */
+export const getAccountState = async (): Promise<AccountState> => {
+  const sb = getSupabase();
+  if (!sb) return { signedIn: false, email: null, isAnonymous: true };
+  try {
+    const { data } = await sb.auth.getSession();
+    const user = data.session?.user;
+    if (!user) return { signedIn: false, email: null, isAnonymous: true };
+    const isAnonymous = Boolean((user as { is_anonymous?: boolean }).is_anonymous);
+    return { signedIn: !isAnonymous, email: user.email ?? null, isAnonymous };
+  } catch {
+    return { signedIn: false, email: null, isAnonymous: true };
+  }
+};
+
+/**
+ * Email login. From an anonymous browser this links the email to the SAME account,
+ * so the existing history comes with it. From a fresh browser it signs into that account.
+ */
+export const sendEmailLogin = async (email: string): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not available");
+  const redirect = window.location.href.split("#")[0];
+  const { data } = await sb.auth.getSession();
+  const isAnonymous = Boolean((data.session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous);
+  if (isAnonymous) {
+    const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: redirect });
+    if (error) throw error;
+    return;
+  }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect, shouldCreateUser: true } });
+  if (error) throw error;
+};
+
+export const signOutAccount = async (): Promise<void> => {
+  await getSupabase()?.auth.signOut();
+  // Start a fresh anonymous browser session so saving keeps working without login.
+  await ensureSession();
+};
