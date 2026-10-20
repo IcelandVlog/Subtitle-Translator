@@ -36,6 +36,8 @@ import ApiStatusBlock from "@/app/components/ApiStatusBlock";
 import ContextTranslationBlock from "@/app/components/ContextTranslationBlock";
 import TranslationProgressStrip from "@/app/components/TranslationProgressStrip";
 import LiveTranslationResults from "./LiveTranslationResults";
+import TranslationHistory from "@/app/components/TranslationHistory";
+import { saveTranslationOutput } from "@/app/lib/supabase/history";
 import { useTranslationContext } from "@/app/components/TranslationContext";
 import ResultCard from "@/app/components/ResultCard";
 import BilingualReviewPanel from "./BilingualReviewPanel";
@@ -219,6 +221,8 @@ const SubtitleTranslator = () => {
   // 徽标走这份 state 副本，随每次入队同步更新。
   const [zipFileCount, setZipFileCount] = useState(0);
   const queueZipFile = (content: string, fileName: string) => {
+    // 历史记录:成品同时存到 Supabase(7 天)。不 await,不阻塞翻译循环。
+    void saveTranslationOutput(fileName, "", content);
     zipQueueRef.current.push({ name: fileName, content });
     setZipFileCount(zipQueueRef.current.length);
   };
@@ -454,6 +458,9 @@ const SubtitleTranslator = () => {
           // ZIP instead of downloading immediately.
           if (isBatchRun) {
             queueZipFile(finalSubtitle, downloadFileName);
+          } else {
+            // 单文件:成品存历史(queueZipFile 路径已在上面处理)
+            void saveTranslationOutput(downloadFileName, currentTargetLang, finalSubtitle);
           }
 
           if (currentTargetLang === previewLang) {
@@ -992,6 +999,8 @@ const SubtitleTranslator = () => {
       />
 
       {/* Results Section */}
+      <TranslationHistory />
+
       {uploadMode === "single" && (translatedText || extractedText) && (
         <div className="mt-6">
           <Row gutter={[24, 24]}>
