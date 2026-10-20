@@ -761,8 +761,9 @@ const SubtitleTranslator = () => {
               // 队列只在「多语言 或 多文件」的批量场景下会被写入(见
               // performTranslation 里的 isBatchRun 判断);单文件单语言的
               // 常规翻译走原有的「预览 + Export 按钮」路径，不需要这颗按钮。
-              onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : undefined}
-              downloadReady={!isTranslating && zipReady}
+              onDownloadZip={multiLanguageMode || multipleFiles.length > 1 || zipReady ? handleDownloadZip : translatedText ? handleExportFile : undefined}
+              downloadReady={!isTranslating && (zipReady || (!!translatedText && !multiLanguageMode && multipleFiles.length <= 1))}
+              singleFileExport={!multiLanguageMode && multipleFiles.length <= 1 && !zipReady}
               downloadCount={zipFileCount}
               downloadTotal={zipFileTotal}
               etaSeconds={etaSeconds}
