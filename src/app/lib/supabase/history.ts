@@ -1,4 +1,3 @@
-import type { User } from "@supabase/supabase-js";
 import { getSupabase } from "./client";
 
 export const HISTORY_UPDATED_EVENT = "translation-history-updated";
@@ -11,50 +10,38 @@ export type HistoryItem = {
   expires_at: string;
 };
 
-export const getCurrentUser = async (): Promise<User | null> => {
+/**
+ * Make sure this browser has a Supabase session. No login: the first visit creates an
+ * anonymous user (Supabase "anonymous sign-in"), and RLS keeps each browser's rows private.
+ * Returns false when Supabase is unavailable (SSR, or the network/provider is down).
+ */
+export const ensureSession = async (): Promise<boolean> => {
   const sb = getSupabase();
-  if (!sb) return null;
+  if (!sb) return false;
   try {
     const { data } = await sb.auth.getSession();
-    return data.session?.user ?? null;
-  } catch {
-    return null;
+    if (data.session) return true;
+    const { error } = await sb.auth.signInAnonymously();
+    if (error) {
+      console.warn("Anonymous sign-in failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn("Supabase session error:", error);
+    return false;
   }
-};
-
-/** Subscribe to login/logout. Returns an unsubscribe function. */
-export const onUserChange = (cb: (user: User | null) => void): (() => void) => {
-  const sb = getSupabase();
-  if (!sb) return () => {};
-  const { data } = sb.auth.onAuthStateChange((_event, session) => cb(session?.user ?? null));
-  return () => data.subscription.unsubscribe();
-};
-
-/** Email a magic link. Clicking it signs the browser in on this page. */
-export const sendMagicLink = async (email: string): Promise<void> => {
-  const sb = getSupabase();
-  if (!sb) throw new Error("Supabase is not available in this environment");
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href.split("#")[0] },
-  });
-  if (error) throw error;
-};
-
-export const signOut = async (): Promise<void> => {
-  await getSupabase()?.auth.signOut();
 };
 
 /**
  * Save a finished output. Fire-and-forget: callers do not await it, so a slow or
- * failed upload never holds up the translation loop. Does nothing when signed out.
+ * failed upload never holds up the translation loop.
  */
 export const saveTranslationOutput = async (fileName: string, targetLang: string, content: string): Promise<void> => {
   try {
     const sb = getSupabase();
     if (!sb) return;
-    const user = await getCurrentUser();
-    if (!user) return;
+    if (!(await ensureSession())) return;
     const { error } = await sb.from("translation_outputs").insert({ file_name: fileName, target_lang: targetLang, content });
     if (error) {
       console.warn("Translation history save failed:", error.message);
