@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { normalizeNewlines, decodeFileBytes, getErrorMessage } from "@/app/utils";
 import { useLocalStorage } from "@/app/hooks/useLocalStorage";
 import type { UploadFile, UploadProps } from "antd";
+import { isArchiveFile, extractSubtitlesFromArchive } from "@/app/utils/archive";
 
 // Shared dedup predicate: match by name + size
 const isDuplicateFile = (a: { name: string; size?: number }, b: { name: string; size?: number }): boolean => a.name === b.name && a.size === b.size;
@@ -14,6 +15,8 @@ const useFileUpload = () => {
   const t = useTranslations("common");
   const [sourceText, setSourceText] = useState<string>("");
   const [multipleFiles, setMultipleFiles] = useState<File[]>([]);
+  const multipleFilesRef = useRef<File[]>([]);
+  multipleFilesRef.current = multipleFiles;
   const [uploadMode, setUploadMode] = useState<"single" | "multiple">("single");
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   // Default true: without this, a second upload ACCUMULATES onto the first
@@ -94,7 +97,8 @@ const useFileUpload = () => {
   };
 
   const handleUploadChange: UploadProps["onChange"] = ({ fileList }: { fileList: UploadFile[] }) => {
-    const updatedFileList: UploadFile[] = fileList.map((f) => ({
+    // zip 本身不进列表:它的字幕文件由 addArchiveFiles 异步展开后再加入
+    const updatedFileList: UploadFile[] = fileList.filter((f) => !isArchiveFile(f)).map((f) => ({
       uid: f.uid,
       name: f.name,
       status: "done",
@@ -113,7 +117,48 @@ const useFileUpload = () => {
     }
   };
 
+  // zip 解出的字幕文件并入批次:总数 > 1 进入多文件模式,否则按单文件读取内容。
+  const addArchiveFiles = (archive: File, extracted: File[]) => {
+    if (extracted.length === 0) {
+      message.warning(`${archive.name}: no subtitle files found`);
+      return;
+    }
+
+    const uploads: UploadFile[] = extracted.map((f, i) => ({
+      uid: `${archive.name}-${i}-${f.name}`,
+      name: f.name,
+      status: "done",
+      size: f.size,
+      originFileObj: f as UploadFile["originFileObj"],
+    }));
+
+    setFileList((prev) => [...prev.filter((f) => !isArchiveFile(f)), ...uploads]);
+
+    // 用 ref 取当前列表(updater 内赋值的变量在 React 里不保证同步可读)
+    const next: File[] = [...multipleFilesRef.current];
+    for (const f of extracted) {
+      if (!next.some((p) => isDuplicateFile(p, f))) next.push(f);
+    }
+    multipleFilesRef.current = next;
+    setMultipleFiles(next);
+
+    if (next.length > 1) {
+      setSourceText("");
+      setUploadMode("multiple");
+    } else if (next.length === 1) {
+      setUploadMode("single");
+      readFile(next[0], latestSourceWriter());
+    }
+  };
+
   const handleFileUpload = (uploadedFile: File) => {
+    if (isArchiveFile(uploadedFile)) {
+      extractSubtitlesFromArchive(uploadedFile)
+        .then((extracted) => addArchiveFiles(uploadedFile, extracted))
+        .catch((error) => message.error(`${uploadedFile.name}: ${getErrorMessage(error)}`));
+      return false;
+    }
+
     if (uploadMode === "single") {
       setSourceText("");
       setMultipleFiles([uploadedFile]);
@@ -128,6 +173,33 @@ const useFileUpload = () => {
     // antd Upload uses `false` return to suppress its default XHR upload —
     // we just collect the file into state and process locally.
     return false;
+  };
+
+  // 把一组文件(例如「继续」暂停任务时取回的原文件)装进上传区,与拖拽上传等价。
+  const loadFiles = (files: File[]) => {
+    loadSeq.current++;
+    if (files.length === 0) {
+      resetUpload();
+      return;
+    }
+    setFileList(
+      files.map((f, i) => ({
+        uid: `loaded-${Date.now()}-${i}`,
+        name: f.name,
+        status: "done",
+        size: f.size,
+        originFileObj: f as UploadFile["originFileObj"],
+      })),
+    );
+    multipleFilesRef.current = files;
+    setMultipleFiles(files);
+    if (files.length > 1) {
+      setSourceText("");
+      setUploadMode("multiple");
+    } else {
+      setUploadMode("single");
+      readFile(files[0], latestSourceWriter());
+    }
   };
 
   const handleUploadRemove: UploadProps["onRemove"] = (file: UploadFile) => {
@@ -160,6 +232,7 @@ const useFileUpload = () => {
     handleFileUpload,
     handleUploadRemove,
     handleUploadChange,
+    loadFiles,
     resetUpload,
   };
 };

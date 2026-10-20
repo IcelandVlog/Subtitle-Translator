@@ -2,7 +2,8 @@
 
 import type { CSSProperties } from "react";
 import { Button, ConfigProvider, Progress, Tooltip, Typography, theme } from "antd";
-import { CloseOutlined, DownloadOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, CloseOutlined, DownloadOutlined, PauseOutlined } from "@ant-design/icons";
+import { PipIcon } from "@/app/components/MiniProgressWindow";
 import { useTranslations } from "next-intl";
 
 const { Text } = Typography;
@@ -14,6 +15,12 @@ interface TranslationProgressStripProps {
   percent: number;
   /** Cancel the in-flight run (requestCancel from the hook) */
   onCancel?: () => void;
+  /** 暂停:停止本轮但保留行缓存(需要 resumable) */
+  onPause?: () => void;
+  /** 打开一个小的进度窗口(可以放在一边,不影响其他操作) */
+  onPopOut?: () => void;
+  /** 继续:停在 STOPPED 态时从缓存处接着跑 */
+  onResume?: () => void;
   /** Dismiss the held DONE / STOPPED state (resets progress so the strip closes) */
   onDismiss?: () => void;
   /**
@@ -61,6 +68,8 @@ interface TranslationProgressStripProps {
    * 省略(或 0)时按钮退回旧的纯计数展示。
    */
   downloadTotal?: number;
+  /** 单文件单语言:按钮直接导出当前结果(文案 Export,不带 ZIP 计数) */
+  singleFileExport?: boolean;
   /**
    * 剩余时间估算(秒)—— 按【全局百分比 vs 已耗时】线性外推,与多文件/多语言
    * 无关,是同一份 percent 的第二种读法。null = 还没攒够样本(<5%)或没在跑。
@@ -95,7 +104,7 @@ const formatEta = (totalSeconds: number): string => {
  * 一闪而过的 toast 里说过一次,界面上不留痕,用户没有理由相信「再点一次不会
  * 从头再来」。done / stopped 都保持到用户点 ✕(onDismiss 复位进度即关闭)。
  */
-const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, etaSeconds = null }: TranslationProgressStripProps) => {
+const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onPause, onPopOut, onResume, onDismiss, resumable = true, multiLanguageMode = false, targetLanguageCount = 0, currentCount, totalCount, failed = false, lineFailures = false, onDownloadZip, downloadReady = false, downloadCount = 0, downloadTotal = 0, singleFileExport = false, etaSeconds = null }: TranslationProgressStripProps) => {
   const t = useTranslations("common");
   const { token } = theme.useToken();
 
@@ -203,20 +212,39 @@ const TranslationProgressStrip = ({ isTranslating, percent, onCancel, onDismiss,
           {onDownloadZip && (
             <Tooltip title={!downloadReady ? t("downloadZipPending") : undefined}>
               <Button size="small" icon={<DownloadOutlined />} disabled={!downloadReady} onClick={onDownloadZip}>
-                {t("downloadZip")}
-                {downloadTotal > 0 ? ` (${downloadCount}/${downloadTotal})` : downloadCount > 0 ? ` (${downloadCount})` : ""}
+                {singleFileExport ? t("exportFile") : t("downloadZip")}
+                {!singleFileExport && (downloadTotal > 0 ? ` (${downloadCount}/${downloadTotal})` : downloadCount > 0 ? ` (${downloadCount})` : "")}
               </Button>
             </Tooltip>
           )}
-          {isTranslating
-            ? onCancel && (
-                <ConfigProvider button={{ autoInsertSpace: false }}>
-                  <Button size="small" onClick={onCancel} style={{ flexShrink: 0 }}>
-                    {t("cancel")}
-                  </Button>
-                </ConfigProvider>
-              )
-            : onDismiss && <Button size="small" type="text" icon={<CloseOutlined />} onClick={onDismiss} aria-label={t("dismiss")} style={{ flexShrink: 0 }} />}
+          {isTranslating ? (
+            <ConfigProvider button={{ autoInsertSpace: false }}>
+              {onPopOut && (
+                <Button size="small" icon={<PipIcon />} onClick={onPopOut} style={{ flexShrink: 0 }}>
+                  Mini
+                </Button>
+              )}
+              {onPause && (
+                <Button size="small" icon={<PauseOutlined />} onClick={onPause} style={{ flexShrink: 0 }}>
+                  {t("pause")}
+                </Button>
+              )}
+              {onCancel && (
+                <Button size="small" onClick={onCancel} style={{ flexShrink: 0 }}>
+                  {t("cancel")}
+                </Button>
+              )}
+            </ConfigProvider>
+          ) : (
+            <>
+              {stopped && onResume && (
+                <Button size="small" type="primary" icon={<CaretRightOutlined />} onClick={onResume} style={{ flexShrink: 0 }}>
+                  {t("resume")}
+                </Button>
+              )}
+              {onDismiss && <Button size="small" type="text" icon={<CloseOutlined />} onClick={onDismiss} aria-label={t("dismiss")} style={{ flexShrink: 0 }} />}
+            </>
+          )}
         </span>
       </div>
     </div>

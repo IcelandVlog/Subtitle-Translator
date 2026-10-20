@@ -6,6 +6,7 @@
 import { LLM_MODELS } from "./registry";
 import { RELAY_HINT_MARKER, RELAY_BASE_INVALID_MARKER } from "./services/shared";
 import { isAbortError, isCascadedAbort } from "@/app/utils/errorUtils";
+import { scheduleTimer } from "./timers";
 
 // MT-categorized services that actually delegate to an LLM runtime under the
 // hood (Qwen-MT → Qwen, translategemma → Gemma 3). They share LLM-style
@@ -167,7 +168,9 @@ const MAX_TIMEOUT_MS = 2 ** 31 - 1;
  * Delay helper function
  */
 export const delay = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, Math.min(ms, MAX_TIMEOUT_MS)));
+  return new Promise((resolve) => {
+    scheduleTimer(resolve, Math.min(ms, MAX_TIMEOUT_MS));
+  });
 };
 
 /**
@@ -184,10 +187,10 @@ export const delay = (ms: number): Promise<void> => {
 export const abortableSleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     if (signal?.aborted) return resolve();
-    const timer = setTimeout(done, Math.min(ms, MAX_TIMEOUT_MS));
+    const cancelTimer = scheduleTimer(done, Math.min(ms, MAX_TIMEOUT_MS));
     function done() {
       signal?.removeEventListener("abort", done);
-      clearTimeout(timer);
+      cancelTimer();
       resolve();
     }
     signal?.addEventListener("abort", done, { once: true });
@@ -230,10 +233,10 @@ const abortableDelay = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error("Translation aborted"));
     const onAbort = () => {
-      clearTimeout(timer);
+      cancelTimer();
       reject(new Error("Translation aborted"));
     };
-    const timer = setTimeout(() => {
+    const cancelTimer = scheduleTimer(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
     }, ms);

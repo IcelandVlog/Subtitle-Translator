@@ -129,6 +129,8 @@
     "search": "Cari",
     "noMatches": "Tidak ada alat yang cocok",
     "clearAll": "Hapus Semua",
+    "pause": "Jeda",
+    "resume": "Lanjutkan",
     "cancel": "Batal",
     "apply": "Terapkan",
     "batchEditMultiLangTooltip": "Konfigurasi cepat target terjemahan multibahasa",

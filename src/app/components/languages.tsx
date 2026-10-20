@@ -3,13 +3,23 @@
 import { languages } from "@/app/lib/translation";
 import { useTranslations } from "next-intl";
 
+/**
+ * "Translated (native)" label. Skips the native part when the translated name
+ * already contains it — e.g. fil: "Filipino (Tagalog)" + "Tagalog" would otherwise
+ * render "Filipino (Tagalog) (Tagalog)".
+ */
+const formatLanguageLabel = (translated: string, native: string): string => {
+  if (!native || translated.toLowerCase().includes(native.toLowerCase())) return translated;
+  return `${translated} (${native})`;
+};
+
 export const useLanguageOptions = () => {
   const t = useTranslations();
 
   // Create source options with translations
   const sourceOptions = languages.map((language) => ({
     ...language,
-    label: `${t(`languages.${language.value}`)} (${language.nativelabel})`,
+    label: formatLanguageLabel(t(`languages.${language.value}`), language.nativelabel),
   }));
 
   // Create target options with translations (excluding "auto")
@@ -17,7 +27,7 @@ export const useLanguageOptions = () => {
     .filter((language) => language.value !== "auto")
     .map((language) => ({
       ...language,
-      label: `${t(`languages.${language.value}`)} (${language.nativelabel})`,
+      label: formatLanguageLabel(t(`languages.${language.value}`), language.nativelabel),
     }));
 
   return { sourceOptions, targetOptions };

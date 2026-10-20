@@ -209,14 +209,20 @@ const useTranslationState = () => {
   // 不挂进来的话,取消在探测期间(最长 requestTimeoutSec)是个空按钮。
   const preflightControllerRef = useRef<AbortController | null>(null);
   const isCancelRequested = () => cancelRequestedRef.current;
-  const requestCancel = () => {
+  const stopRun = () => {
     cancelRequestedRef.current = true;
     abortControllerRef.current?.abort();
     preflightControllerRef.current?.abort();
+  };
+  const requestCancel = () => {
+    stopRun();
     // toast 只确认"动作发生了"这一件事。"停在哪、还能不能续"由进度条的
     // STOPPED 态常驻着说 —— 那句话该留在屏幕上,而不是闪一下就没。
     message.info(t("translationCancelled"));
   };
+  // 暂停 = 同一套停止机制(已译行已写入行缓存),区别只在不弹"已取消"提示;
+  // 进度条停在 STOPPED 态并给出「继续」按钮,再次翻译即从缓存处接着跑。
+  const pauseTranslation = () => stopRun();
 
   const { llmPresets, setLlmPresets, activeLlmPresetId, setActiveLlmPresetId, saveLlmPreset, loadLlmPreset, deleteLlmPreset, renameLlmPreset, updateLlmPreset } = useLlmPresets({
     translationConfigs,
@@ -865,6 +871,7 @@ const useTranslationState = () => {
     markRunHadFailures,
     runHadFailures,
     requestCancel,
+    pauseTranslation,
     isCancelRequested,
     hadRunFailures,
     runRetry,
