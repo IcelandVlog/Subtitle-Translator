@@ -163,6 +163,7 @@ const TranslationHistory = ({ onContinue }: Props) => {
             loading={loading}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Text type="secondary">No saved translations yet</Text>} /> }}
             dataSource={items}
+            pagination={{ pageSize: 10, size: "small", hideOnSinglePage: true, showSizeChanger: false, align: "center" }}
             renderItem={(item) => {
               const isJob = item.type === "job";
               const actions = isJob
