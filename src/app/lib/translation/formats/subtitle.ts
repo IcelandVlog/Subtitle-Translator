@@ -944,6 +944,13 @@ export const setAssTitle = (text: string, title: string): string => {
   return text.replace(/^(\[Script Info\][^\r\n]*)(\r?\n)/im, (_m, head: string, nl: string) => `${head}${nl}Title: ${title}${nl}`);
 };
 
+/**
+ * [Script Info] 里原字幕作者的 Crunchyroll 信息(cr_ar 之类)改成目标语言代码:
+ * Original Script 行的值换成 code,独立的 [https://...] 作者链接行删掉。
+ */
+export const setAssScriptInfo = (text: string, code: string): string =>
+  text.replace(/^(Original Script:)[^\r\n]*/im, `$1 ${code}`).replace(/^\[https?:\/\/[^\r\n]*\][ \t]*\r?\n/gim, "");
+
 export const buildAssHeader = (config: AssStyleConfig, sourceLang: string, targetLang: string): string => {
   const fonts = resolveBilingualFonts(sourceLang, targetLang, config.fontName);
   return `[Script Info]
@@ -1217,7 +1224,7 @@ export const assembleSubtitleOutput = (input: {
   // ASS 的 [Script Info] Title 写成目标语言的母语名(English / বাংলা / العربية),
   // 纯字符串替换,不发任何请求,不影响翻译速度。
   if (fileType === "ass" || shouldConvertToAssBilingual) {
-    finalSubtitle = setAssTitle(finalSubtitle, nativeLanguageName(exportLang));
+    finalSubtitle = setAssScriptInfo(setAssTitle(finalSubtitle, nativeLanguageName(exportLang)), exportLang);
   }
 
   // removeChars 已在调用方对【原始译文】逐行应用 —— 不再对装配后的

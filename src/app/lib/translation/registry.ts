@@ -109,15 +109,16 @@ export const PROVIDERS = {
     // 12.5KB 单请求实测 200)。相比旧的每行一请求 ×100 并发，请求数降
     // 50-100x，免费共享端点的 IP 限流压力随之消失;残余 429 仍由共享冷却闸
     // (lib/translation/retry.ts rateLimitGate) 全局暂停后自动恢复。
-    // batchSize 只服务 line 路径兜底 (chunk 路径是顺序循环，不读它)。
+    // batchSize = chunk 路径的并发数(见 pipeline.ts chunkConcurrency)。
     //
     // url 可切换网关，服务实现按 URL 形状分流协议 (见 services/traditional.ts):
     //   - 含 /translate_a/ → legacy 表单协议 (被 Google 反滥用墙拦截的旧端点，
     //     但墙按 IP 信誉放行，部分地区/IP 仍可用，保留作备选)
     //   - 其余 (默认 translate-pa，或用户自建同协议镜像)→ translateHtml 数组协议
-    // chunkSize 1000 + batchSize 10: chunks finish one after another, so each finished chunk is
-    // cached and a paused run resumes close to where it stopped (not from the start).
-    defaults: { url: "https://translate-pa.googleapis.com/v1/translateHtml", chunkSize: 1000, delayTime: 0, batchSize: 10 },
+    // chunkSize 1000 + batchSize 30: 30 chunks run in parallel (max speed). Each finished chunk is
+    // cached, so a paused run resumes from the paused point; at most ~30 in-flight chunks are redone.
+    // 429 上的共享冷却闸 (rateLimitGate) 会自动把并发降下来等待,不会整轮失败。
+    defaults: { url: "https://translate-pa.googleapis.com/v1/translateHtml", chunkSize: 1000, delayTime: 0, batchSize: 30 },
     endpoints: [
       { label: "translate-pa (Default)", url: "https://translate-pa.googleapis.com/v1/translateHtml" },
       { label: "Legacy gtx", url: "https://translate.googleapis.com/translate_a/single" },
