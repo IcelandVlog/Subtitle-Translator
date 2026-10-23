@@ -38,6 +38,12 @@ export const openMiniWindow = async (): Promise<Window | null> => {
   if (win) {
     win.document.title = "Translation progress";
     win.document.body.style.margin = "0";
+    // 小窗口标题栏的图标:用站点自己的 icon.png(新窗口默认没有图标)。
+    const icon = win.document.createElement("link");
+    icon.rel = "icon";
+    icon.type = "image/png";
+    icon.href = `${window.location.origin}/icon.png`;
+    win.document.head.appendChild(icon);
   }
   return win;
 };

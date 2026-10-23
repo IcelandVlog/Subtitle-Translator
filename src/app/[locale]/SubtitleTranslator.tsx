@@ -671,6 +671,15 @@ const SubtitleTranslator = () => {
     if (w) setMiniWin(w);
     else message.warning("Could not open the progress window. Allow popups for this site.");
   };
+  // Mini button: 小窗口开着时再点 = 关掉小窗口、回到主页面(不再重复开多个窗口)。
+  const handleMiniToggle = async () => {
+    if (miniWin) {
+      closeMini();
+      window.focus();
+      return;
+    }
+    await handlePopOut();
+  };
   // Finished: keep the final state briefly, then close. Paused/cancelled stays open (Continue).
   useEffect(() => {
     if (!miniWin || isTranslating || progressPercent < 100) return;
@@ -868,7 +877,7 @@ const SubtitleTranslator = () => {
               percent={progressPercent}
               onCancel={handleCancel}
               onPause={useCache ? handlePause : undefined}
-              onPopOut={handlePopOut}
+              onPopOut={handleMiniToggle}
               onResume={useCache ? handleTranslateClick : undefined}
               resumable={useCache}
               onDismiss={resetProgress}
