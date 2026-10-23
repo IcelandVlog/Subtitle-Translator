@@ -100,7 +100,11 @@ const MiniProgressWindow = ({ win, percent, current, total, running, info, onPau
         fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
       }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-        <strong>{label}</strong>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* 站点 logo:小窗口的标题栏图标由浏览器控制,页面里放 logo 才能看到 */}
+          <img src={`${window.location.origin}/icon.png`} alt="" width={18} height={18} style={{ borderRadius: 4 }} />
+          <strong>{label}</strong>
+        </span>
         <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>
             {current} / {total}
