@@ -57,15 +57,17 @@ export const saveTranslationOutput = async (fileName: string, targetLang: string
 };
 
 /** A finished batch, stored as one zip entry in history. */
-export const saveTranslationBatch = async (files: SavedFile[]): Promise<void> => {
+export const saveTranslationBatch = async (files: SavedFile[], sourceNames?: string[]): Promise<void> => {
   if (files.length === 0) return;
   try {
     const sb = getSupabase();
     if (!sb || !(await ensureSession())) return;
     // 名字用里面文件的真实名字(前两个 + 余下数量),而不是只有时间戳。
     // 去掉文件名里不允许的字符,保证下载时也能用。
-    const names = files.slice(0, 2).map((f) => f.name).join(", ");
-    const more = files.length > 2 ? ` (+${files.length - 2} more)` : "";
+    // 名字用【原始上传文件】的名字(不是翻译输出的名字),去重后取前两个。
+    const unique = Array.from(new Set(sourceNames && sourceNames.length > 0 ? sourceNames : files.map((f) => f.name)));
+    const names = unique.slice(0, 2).join(", ");
+    const more = unique.length > 2 ? ` (+${unique.length - 2} more)` : "";
     const zipName = `${names}${more}`.replace(/[\\/:*?"<>|]/g, "_").slice(0, 180) + ".zip";
     const { error } = await sb.from("translation_outputs").insert({
       file_name: zipName,

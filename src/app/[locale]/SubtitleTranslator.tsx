@@ -643,7 +643,14 @@ const SubtitleTranslator = () => {
     // 本轮(不论正常跑完还是被取消)只要队列里攒了东西就点亮下载
     // 按钮 —— 不自动下载,交给用户手动点。
     if (zipQueueRef.current.length > 0) setZipReady(true);
-    if (zipQueueRef.current.length > 0) void saveTranslationBatch(zipQueueRef.current.map(({ name, content }) => ({ name, content })));
+    if (zipQueueRef.current.length > 0) {
+      // history-তে ZIP-এর নাম হবে মূল (upload করা) file-এর নাম
+      const sourceNames = uploadMode === "single" ? [multipleFiles[0]?.name ?? "subtitle"] : multipleFiles.map((f) => f.name);
+      void saveTranslationBatch(
+        zipQueueRef.current.map(({ name, content }) => ({ name, content })),
+        sourceNames,
+      );
+    }
   };
 
   // 小窗口:显示进度,不影响翻译。关闭按钮或翻译结束后关闭。
