@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { App, Button, Card, Empty, Flex, Input, List, Space, Tag, Typography } from "antd";
+import { App, Button, Card, Checkbox, Empty, Flex, Input, List, Space, Tag, Typography } from "antd";
 import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LockOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
 import {
   HISTORY_UPDATED_EVENT,
@@ -51,6 +51,8 @@ const TranslationHistory = ({ onContinue }: Props) => {
   const [sending, setSending] = useState(false);
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  // Selected rows, as "type:id" keys. Used for bulk download and delete.
+  const [selected, setSelected] = useState<string[]>([]);
   // Set after "Create account" when Supabase emailed a code: { email, anonymous }.
   const [pendingVerify, setPendingVerify] = useState<{ email: string; anonymous: boolean } | null>(null);
   const [code, setCode] = useState("");
@@ -141,6 +143,66 @@ const TranslationHistory = ({ onContinue }: Props) => {
     } finally {
       setAuthBusy(false);
     }
+  };
+
+  const keyOf = (item: HistoryItem) => `${item.type}:${item.id}`;
+  const selectedItems = items.filter((i) => selected.includes(keyOf(i)));
+  const allSelected = items.length > 0 && selectedItems.length === items.length;
+  const someSelected = selectedItems.length > 0 && !allSelected;
+
+  const toggleOne = (item: HistoryItem, checked: boolean) => {
+    const key = keyOf(item);
+    setSelected((prev) => (checked ? [...prev.filter((k) => k !== key), key] : prev.filter((k) => k !== key)));
+  };
+
+  const toggleAll = (checked: boolean) => setSelected(checked ? items.map(keyOf) : []);
+
+  // Jobs (paused) have no downloadable file, so they are skipped here.
+  const handleBulkDownload = async () => {
+    const downloadable = selectedItems.filter((i) => i.type !== "job");
+    if (downloadable.length === 0) {
+      message.warning("Select a finished file or ZIP to download.");
+      return;
+    }
+    let failed = 0;
+    for (const item of downloadable) {
+      try {
+        await downloadHistoryItem(item);
+        // Small gap so the browser does not block the burst of downloads.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      } catch {
+        failed += 1;
+      }
+    }
+    if (failed > 0) message.warning(`${failed} download(s) failed. Allow multiple downloads if the browser asks.`);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedItems.length === 0) return;
+    modal.confirm({
+      title: `Delete ${selectedItems.length} item(s)?`,
+      content: "The selected items will be removed from your history. This cannot be undone.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      centered: true,
+      onOk: async () => {
+        const toDelete = [...selectedItems];
+        let failed = 0;
+        for (const item of toDelete) {
+          try {
+            await deleteHistoryItem(item);
+          } catch {
+            failed += 1;
+          }
+        }
+        const deletedKeys = new Set(toDelete.map(keyOf));
+        setItems((prev) => prev.filter((i) => !deletedKeys.has(keyOf(i))));
+        setSelected([]);
+        if (failed > 0) message.warning(`${failed} item(s) could not be deleted.`);
+        else message.success("Deleted");
+      },
+    });
   };
 
   const handleSignOut = async () => {
@@ -245,6 +307,21 @@ const TranslationHistory = ({ onContinue }: Props) => {
             <Text type="secondary">Signed in as {account.email}</Text>
             <Text strong>Total: {formatSize(items.reduce((sum, i) => sum + (i.size_bytes ?? 0), 0))}</Text>
           </Flex>
+          {items.length > 0 && (
+            <Flex justify="space-between" align="center" wrap="wrap" gap={8} style={{ marginBottom: 8 }}>
+              <Checkbox indeterminate={someSelected} checked={allSelected} onChange={(e) => toggleAll(e.target.checked)}>
+                Select all {selectedItems.length > 0 ? `(${selectedItems.length} selected)` : ""}
+              </Checkbox>
+              <Space>
+                <Button size="small" icon={<DownloadOutlined />} disabled={selectedItems.length === 0} onClick={handleBulkDownload}>
+                  Download selected
+                </Button>
+                <Button size="small" danger icon={<DeleteOutlined />} disabled={selectedItems.length === 0} onClick={handleBulkDelete}>
+                  Delete selected
+                </Button>
+              </Space>
+            </Flex>
+          )}
           <List
             loading={loading}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Text type="secondary">No saved translations yet</Text>} /> }}
@@ -267,6 +344,7 @@ const TranslationHistory = ({ onContinue }: Props) => {
                   ];
               return (
                 <List.Item actions={actions}>
+                  <Checkbox checked={selected.includes(keyOf(item))} onChange={(e) => toggleOne(item, e.target.checked)} style={{ marginRight: 12 }} />
                   <List.Item.Meta
                     title={
                       <Space size={6}>
