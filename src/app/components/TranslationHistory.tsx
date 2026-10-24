@@ -18,6 +18,7 @@ import {
   signInWithPassword,
   signOutAccount,
   signUpWithPassword,
+  verifyAccountCode,
 } from "@/app/lib/supabase/history";
 
 const { Text } = Typography;
@@ -42,6 +43,9 @@ const TranslationHistory = ({ onContinue }: Props) => {
   const [sending, setSending] = useState(false);
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  // Set after "Create account" when Supabase emailed a code: { email, anonymous }.
+  const [pendingVerify, setPendingVerify] = useState<{ email: string; anonymous: boolean } | null>(null);
+  const [code, setCode] = useState("");
 
   const refresh = useCallback(async () => {
     const state = await getAccountState();
@@ -92,12 +96,40 @@ const TranslationHistory = ({ onContinue }: Props) => {
     }
     setAuthBusy(true);
     try {
-      if (mode === "in") await signInWithPassword(value, password);
-      else await signUpWithPassword(value, password);
-      setPassword("");
-      refresh();
+      if (mode === "in") {
+        await signInWithPassword(value, password);
+        setPassword("");
+        refresh();
+        return;
+      }
+      const anonymous = account.isAnonymous;
+      const result = await signUpWithPassword(value, password);
+      if (result === "verify") {
+        setPendingVerify({ email: value, anonymous });
+        message.info("A 6-digit code was sent to your email. Enter it below.");
+      } else {
+        setPassword("");
+        refresh();
+      }
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Sign-in failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!pendingVerify) return;
+    setAuthBusy(true);
+    try {
+      await verifyAccountCode(pendingVerify.email, code.trim(), pendingVerify.anonymous);
+      setPendingVerify(null);
+      setCode("");
+      setPassword("");
+      message.success("Account created. Next time, sign in with your email and password.");
+      refresh();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Wrong or expired code");
     } finally {
       setAuthBusy(false);
     }
@@ -172,6 +204,20 @@ const TranslationHistory = ({ onContinue }: Props) => {
           <Text type="secondary">Create an account once. After that, sign in with your email and password, no email link needed.</Text>
           <Input prefix={<MailOutlined />} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={authBusy} />
           <Input.Password prefix={<LockOutlined />} placeholder="Password (at least 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} onPressEnter={() => handlePasswordAuth("in")} disabled={authBusy} />
+          {pendingVerify ? (
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Text>Enter the 6-digit code sent to {pendingVerify.email}</Text>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input placeholder="123456" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} onPressEnter={handleVerify} disabled={authBusy} />
+                <Button type="primary" onClick={handleVerify} loading={authBusy} disabled={code.length !== 6}>
+                  Confirm code
+                </Button>
+              </Space.Compact>
+              <Button type="link" size="small" onClick={() => setPendingVerify(null)} style={{ padding: 0 }}>
+                Cancel
+              </Button>
+            </Space>
+          ) : (
           <Space wrap>
             <Button type="primary" onClick={() => handlePasswordAuth("in")} loading={authBusy} disabled={!email.trim() || !password}>
               Sign in
@@ -183,6 +229,7 @@ const TranslationHistory = ({ onContinue }: Props) => {
               Email me a login link instead
             </Button>
           </Space>
+          )}
         </Space>
       ) : (
         <>

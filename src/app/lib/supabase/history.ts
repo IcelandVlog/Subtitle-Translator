@@ -230,14 +230,37 @@ export const signInWithPassword = async (email: string, password: string): Promi
   if (error) throw error;
 };
 
-/** Create an account with email + password. From an anonymous browser the same account is upgraded (history kept). */
-export const signUpWithPassword = async (email: string, password: string): Promise<void> => {
+/**
+ * Create an account with email + password. From an anonymous browser the same account is upgraded (history kept).
+ * Returns "verify" when Supabase emailed a 6-digit code that must be entered (see verifyAccountCode).
+ */
+export const signUpWithPassword = async (email: string, password: string): Promise<"done" | "verify"> => {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not available");
   const { data } = await sb.auth.getSession();
   const isAnonymous = Boolean((data.session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous);
-  const { error } = isAnonymous ? await sb.auth.updateUser({ email, password }) : await sb.auth.signUp({ email, password });
+  if (isAnonymous) {
+    const { data: updated, error } = await sb.auth.updateUser({ email, password });
+    if (error) throw error;
+    return updated.user?.new_email ? "verify" : "done";
+  }
+  const { data: signed, error } = await sb.auth.signUp({ email, password });
   if (error) throw error;
+  return signed.session ? "done" : "verify";
+};
+
+/** Enter the 6-digit code from the email. Tries the OTP types Supabase may use for this flow. */
+export const verifyAccountCode = async (email: string, token: string, anonymousUpgrade: boolean): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not available");
+  const types = anonymousUpgrade ? (["email_change", "email", "signup"] as const) : (["signup", "email"] as const);
+  let lastError: Error | null = null;
+  for (const type of types) {
+    const { error } = await sb.auth.verifyOtp({ email, token, type });
+    if (!error) return;
+    lastError = error;
+  }
+  throw lastError ?? new Error("Code is not valid");
 };
 
 export const signOutAccount = async (): Promise<void> => {
