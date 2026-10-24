@@ -13,11 +13,16 @@ export type HistoryItem = {
   created_at: string;
   expires_at: string;
   file_count: number;
+  /** Stored size in bytes (null for rows saved before size tracking). */
+  size_bytes: number | null;
 };
 
 export type AccountState = { signedIn: boolean; email: string | null; isAnonymous: boolean };
 
 const notify = () => window.dispatchEvent(new Event(HISTORY_UPDATED_EVENT));
+
+/** UTF-8 byte size of a string, i.e. how much it takes up in the database. */
+const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
 
 /**
  * Make sure this browser has a Supabase session. Without login the first visit creates an
@@ -48,7 +53,7 @@ export const saveTranslationOutput = async (fileName: string, targetLang: string
   try {
     const sb = getSupabase();
     if (!sb || !(await ensureSession())) return;
-    const { error } = await sb.from("translation_outputs").insert({ file_name: fileName, target_lang: targetLang, content, kind: "file", file_count: 1 });
+    const { error } = await sb.from("translation_outputs").insert({ file_name: fileName, target_lang: targetLang, content, kind: "file", file_count: 1, size_bytes: bytesOf(content) });
     if (error) return console.warn("Translation history save failed:", error.message);
     notify();
   } catch (error) {
@@ -75,6 +80,7 @@ export const saveTranslationBatch = async (files: SavedFile[], sourceNames?: str
       content: JSON.stringify(files),
       kind: "zip",
       file_count: files.length,
+      size_bytes: bytesOf(JSON.stringify(files)),
     });
     if (error) return console.warn("Batch history save failed:", error.message);
     notify();
@@ -89,7 +95,7 @@ export const saveTranslationJob = async (title: string, files: SavedFile[]): Pro
   try {
     const sb = getSupabase();
     if (!sb || !(await ensureSession())) return;
-    const { error } = await sb.from("translation_jobs").insert({ title, file_count: files.length, payload: files });
+    const { error } = await sb.from("translation_jobs").insert({ title, file_count: files.length, payload: files, size_bytes: bytesOf(JSON.stringify(files)) });
     if (error) return console.warn("Paused job save failed:", error.message);
     notify();
   } catch (error) {
@@ -97,15 +103,15 @@ export const saveTranslationJob = async (title: string, files: SavedFile[]): Pro
   }
 };
 
-type OutputRow = { id: string; file_name: string; target_lang: string; created_at: string; expires_at: string; kind: string; file_count: number };
-type JobRow = { id: string; title: string; created_at: string; expires_at: string; file_count: number };
+type OutputRow = { id: string; file_name: string; target_lang: string; created_at: string; expires_at: string; kind: string; file_count: number; size_bytes: number | null };
+type JobRow = { id: string; title: string; created_at: string; expires_at: string; file_count: number; size_bytes: number | null };
 
 export const listHistory = async (): Promise<HistoryItem[]> => {
   const sb = getSupabase();
   if (!sb) return [];
   const [outputs, jobs] = await Promise.all([
-    sb.from("translation_outputs").select("id, file_name, target_lang, created_at, expires_at, kind, file_count").order("created_at", { ascending: false }).limit(100),
-    sb.from("translation_jobs").select("id, title, created_at, expires_at, file_count").order("created_at", { ascending: false }).limit(100),
+    sb.from("translation_outputs").select("id, file_name, target_lang, created_at, expires_at, kind, file_count, size_bytes").order("created_at", { ascending: false }).limit(100),
+    sb.from("translation_jobs").select("id, title, created_at, expires_at, file_count, size_bytes").order("created_at", { ascending: false }).limit(100),
   ]);
   if (outputs.error) throw outputs.error;
   if (jobs.error) throw jobs.error;
@@ -118,6 +124,7 @@ export const listHistory = async (): Promise<HistoryItem[]> => {
       created_at: r.created_at,
       expires_at: r.expires_at,
       file_count: r.file_count ?? 1,
+      size_bytes: r.size_bytes ?? null,
     })),
     ...((jobs.data ?? []) as JobRow[]).map((r) => ({
       type: "job" as const,
@@ -127,6 +134,7 @@ export const listHistory = async (): Promise<HistoryItem[]> => {
       created_at: r.created_at,
       expires_at: r.expires_at,
       file_count: r.file_count,
+      size_bytes: r.size_bytes ?? null,
     })),
   ];
   return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));

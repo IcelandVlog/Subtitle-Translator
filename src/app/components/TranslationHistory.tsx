@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { App, Button, Card, Empty, Input, List, Space, Tag, Typography } from "antd";
+import { App, Button, Card, Empty, Flex, Input, List, Space, Tag, Typography } from "antd";
 import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LockOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
 import {
   HISTORY_UPDATED_EVENT,
@@ -24,6 +24,14 @@ import {
 const { Text } = Typography;
 
 const formatDate = (iso: string) => new Date(iso).toLocaleString();
+
+/** 1536 -> "1.5 KB", 3_200_000 -> "3.1 MB". */
+const formatSize = (bytes: number | null | undefined): string => {
+  if (bytes === null || bytes === undefined) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 type Props = {
   /** Continue a paused job: receives its original files. */
@@ -233,9 +241,10 @@ const TranslationHistory = ({ onContinue }: Props) => {
         </Space>
       ) : (
         <>
-          <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-            Signed in as {account.email}
-          </Text>
+          <Flex justify="space-between" align="center" wrap="wrap" gap={8} style={{ marginBottom: 8 }}>
+            <Text type="secondary">Signed in as {account.email}</Text>
+            <Text strong>Total: {formatSize(items.reduce((sum, i) => sum + (i.size_bytes ?? 0), 0))}</Text>
+          </Flex>
           <List
             loading={loading}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Text type="secondary">No saved translations yet</Text>} /> }}
@@ -265,7 +274,7 @@ const TranslationHistory = ({ onContinue }: Props) => {
                         {item.title}
                       </Space>
                     }
-                    description={`${item.target_lang ? item.target_lang + " · " : ""}${isJob ? `${item.file_count} file(s) · ` : ""}${formatDate(item.created_at)} · expires ${formatDate(item.expires_at)}`}
+                    description={`${item.target_lang ? item.target_lang + " · " : ""}${isJob ? `${item.file_count} file(s) · ` : ""}${formatSize(item.size_bytes)} · ${formatDate(item.created_at)} · expires ${formatDate(item.expires_at)}`}
                   />
                 </List.Item>
               );
