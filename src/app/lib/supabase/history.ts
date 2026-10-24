@@ -62,9 +62,13 @@ export const saveTranslationBatch = async (files: SavedFile[]): Promise<void> =>
   try {
     const sb = getSupabase();
     if (!sb || !(await ensureSession())) return;
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    // 名字用里面文件的真实名字(前两个 + 余下数量),而不是只有时间戳。
+    // 去掉文件名里不允许的字符,保证下载时也能用。
+    const names = files.slice(0, 2).map((f) => f.name).join(", ");
+    const more = files.length > 2 ? ` (+${files.length - 2} more)` : "";
+    const zipName = `${names}${more}`.replace(/[\\/:*?"<>|]/g, "_").slice(0, 180) + ".zip";
     const { error } = await sb.from("translation_outputs").insert({
-      file_name: `translations-${stamp}.zip`,
+      file_name: zipName,
       target_lang: "",
       content: JSON.stringify(files),
       kind: "zip",
