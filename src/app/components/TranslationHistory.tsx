@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { App, Button, Card, Empty, Input, List, Space, Tag, Typography } from "antd";
-import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, HistoryOutlined, LockOutlined, LogoutOutlined, MailOutlined } from "@ant-design/icons";
 import {
   HISTORY_UPDATED_EVENT,
   type AccountState,
@@ -15,7 +15,9 @@ import {
   loadJobFiles,
   onUserChange,
   sendEmailLogin,
+  signInWithPassword,
   signOutAccount,
+  signUpWithPassword,
 } from "@/app/lib/supabase/history";
 
 const { Text } = Typography;
@@ -38,6 +40,8 @@ const TranslationHistory = ({ onContinue }: Props) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [password, setPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     const state = await getAccountState();
@@ -77,6 +81,25 @@ const TranslationHistory = ({ onContinue }: Props) => {
       message.error(error instanceof Error ? error.message : "Could not send login link");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handlePasswordAuth = async (mode: "in" | "up") => {
+    const value = email.trim();
+    if (!value || password.length < 6) {
+      message.warning("Email and a password of at least 6 characters are needed.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      if (mode === "in") await signInWithPassword(value, password);
+      else await signUpWithPassword(value, password);
+      setPassword("");
+      refresh();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Sign-in failed");
+    } finally {
+      setAuthBusy(false);
     }
   };
 
@@ -146,13 +169,20 @@ const TranslationHistory = ({ onContinue }: Props) => {
       }>
       {!account.signedIn ? (
         <Space direction="vertical" style={{ width: "100%" }}>
-          <Text type="secondary">Sign in with your email to see your translation history here, and to open it on any device.</Text>
-          <Space.Compact style={{ width: "100%" }}>
-            <Input prefix={<MailOutlined />} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} onPressEnter={handleSend} disabled={sending} />
-            <Button type="primary" onClick={handleSend} loading={sending} disabled={!email.trim()}>
-              Send login link
+          <Text type="secondary">Create an account once. After that, sign in with your email and password, no email link needed.</Text>
+          <Input prefix={<MailOutlined />} type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={authBusy} />
+          <Input.Password prefix={<LockOutlined />} placeholder="Password (at least 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} onPressEnter={() => handlePasswordAuth("in")} disabled={authBusy} />
+          <Space wrap>
+            <Button type="primary" onClick={() => handlePasswordAuth("in")} loading={authBusy} disabled={!email.trim() || !password}>
+              Sign in
             </Button>
-          </Space.Compact>
+            <Button onClick={() => handlePasswordAuth("up")} loading={authBusy} disabled={!email.trim() || !password}>
+              Create account
+            </Button>
+            <Button type="link" onClick={handleSend} loading={sending} disabled={!email.trim()}>
+              Email me a login link instead
+            </Button>
+          </Space>
         </Space>
       ) : (
         <>

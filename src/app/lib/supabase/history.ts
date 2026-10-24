@@ -218,6 +218,24 @@ export const sendEmailLogin = async (email: string): Promise<void> => {
   if (error) throw error;
 };
 
+/** Password sign-in: no email needed after the account exists. */
+export const signInWithPassword = async (email: string, password: string): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not available");
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+};
+
+/** Create an account with email + password. From an anonymous browser the same account is upgraded (history kept). */
+export const signUpWithPassword = async (email: string, password: string): Promise<void> => {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not available");
+  const { data } = await sb.auth.getSession();
+  const isAnonymous = Boolean((data.session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous);
+  const { error } = isAnonymous ? await sb.auth.updateUser({ email, password }) : await sb.auth.signUp({ email, password });
+  if (error) throw error;
+};
+
 export const signOutAccount = async (): Promise<void> => {
   await getSupabase()?.auth.signOut();
   await ensureSession();
